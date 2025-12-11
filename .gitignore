@@ -1,5 +1,23 @@
-# .gitignore 내용
+# Dependencies
+node_modules/
 venv/
-.env
 __pycache__/
+
+# Build outputs
+dist/
+build/
+*.pyc
+
+# Environment variables
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
 .DS_Store
+Thumbs.db
