@@ -9,7 +9,7 @@ from app.schemas.stock import (
     TickerSearchRequest,
     TickerSearchResponse,
 )
-from app.services.stock import StockService
+from app.services.stock.service import StockService
 from app.services.ai_service import AIService
 from app.core.dependencies import get_stock_service, get_ai_service
 from app.core.database import get_db
