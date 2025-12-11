@@ -59,23 +59,57 @@ npm run dev
 
 ## 주요 기능
 
-- 주식 정보 조회 (yfinance 사용)
-- AI 기반 주식 분석 (OpenAI GPT-4o-mini)
-- 실시간 주가 정보
-- 투자 포인트 및 리스크 분석
+### 주식 정보 조회
+- 실시간 주가 정보 및 등락률
+- 52주 최고가/최저가 위치 시각화
+- 주요 재무 지표 (PER, PBR, ROE, 배당률, Beta, 목표가)
+
+### AI 기반 분석
+- OpenAI GPT-4o-mini를 활용한 종합 분석
+- 투자 매력도 점수 (0-100점)
+- 매수/중립/주의 신호 제공
+- 3줄 요약 및 리스크 분석
+- 지표별 개별 AI 코멘트
+
+### 사용자 인터페이스
+- 모바일 퍼스트 반응형 디자인
+- Bento Grid 스타일 레이아웃
+- 지표 상세 모달 (모바일: Bottom Sheet, 데스크톱: Center Modal)
+- 부드러운 애니메이션 (Framer Motion)
+- Modern Fintech 디자인 (토스, 로빈후드 스타일)
 
 ## 기술 스택
 
 ### Backend
-- FastAPI
-- yfinance
-- OpenAI API
-- Python
+- **프레임워크**: FastAPI 0.104.1
+- **서버**: Uvicorn (ASGI 서버)
+- **언어**: Python 3.12+
+- **데이터 검증**: Pydantic 2.5.0
+- **환경 변수**: python-dotenv 1.0.0
+- **HTTP 클라이언트**: httpx 0.25.0
+- **주식 데이터**: yfinance 0.2.28
+- **AI 분석**: OpenAI API (GPT-4o-mini)
 
 ### Frontend
-- React
-- Vite
-- Axios
+- **프레임워크**: React 18.2.0
+- **빌드 도구**: Vite 5.0.0
+- **언어**: TypeScript 5.2.2
+- **스타일링**: 
+  - TailwindCSS 3.4.1
+  - PostCSS 8.4.35
+  - Autoprefixer 10.4.17
+- **상태 관리**: Zustand 5.0.9
+- **HTTP 클라이언트**: Axios 1.6.0
+- **애니메이션**: Framer Motion 12.23.26
+- **아이콘**: Lucide React 0.559.0
+
+### 개발 도구
+- **프론트엔드**: 
+  - @vitejs/plugin-react
+  - TypeScript 타입 정의
+- **백엔드**: 
+  - FastAPI 자동 API 문서화 (Swagger/OpenAPI)
+  - Pydantic 설정 관리
 
 ## API 엔드포인트
 

@@ -41,11 +41,8 @@ def create_application() -> FastAPI:
     
     @app.get("/")
     async def root():
-        """루트 엔드포인트"""
-        return {
-            "message": settings.API_TITLE,
-            "version": settings.API_VERSION
-        }
+        """루트 엔드포인트 - 서버 상태 확인용"""
+        return {"status": "ok"}
     
     logger.info(f"{settings.API_TITLE} v{settings.API_VERSION} 초기화 완료")
     

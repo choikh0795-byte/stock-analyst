@@ -14,10 +14,11 @@ class StockApiClient {
   private axiosInstance: AxiosInstance
   private readonly baseURL: string
 
-  private constructor(baseURL: string = 'http://localhost:8000') {
-    this.baseURL = baseURL
+  private constructor(baseURL?: string) {
+    // 환경변수에서 API URL 가져오기, 없으면 로컬 주소 사용
+    this.baseURL = baseURL || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
     this.axiosInstance = axios.create({
-      baseURL,
+      baseURL: this.baseURL,
       timeout: 30000,
       headers: {
         'Content-Type': 'application/json',
