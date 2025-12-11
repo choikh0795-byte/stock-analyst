@@ -18,7 +18,7 @@ export const Header: React.FC = () => {
         Stock Insight
       </h1>
       <p className="text-lg sm:text-xl text-slate-600 font-light">
-        복잡한 데이터, 3초 만에 핵심만
+        복잡한 주식 정보, 3초 만에 핵심만
       </p>
       {hasSearched && (
         <p className="subtitle text-base text-slate-600 mt-2">

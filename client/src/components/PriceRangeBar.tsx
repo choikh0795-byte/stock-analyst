@@ -4,6 +4,11 @@ interface PriceRangeBarProps {
   current: number
   low: number | null | undefined
   high: number | null | undefined
+  currency?: string
+  // 백엔드에서 포맷팅된 문자열 (우선 사용)
+  current_str?: string | null
+  low_str?: string | null
+  high_str?: string | null
 }
 
 /**
@@ -13,7 +18,25 @@ export const PriceRangeBar: React.FC<PriceRangeBarProps> = ({
   current,
   low,
   high,
+  currency = 'USD',
+  current_str,
+  low_str,
+  high_str,
 }) => {
+  const isKorean = currency === 'KRW'
+  
+  const formatPrice = (price: number, formattedStr?: string | null): string => {
+    // 백엔드에서 포맷팅된 문자열이 있으면 우선 사용
+    if (formattedStr) {
+      return formattedStr
+    }
+    // 없으면 기존 로직 사용 (fallback)
+    if (isKorean) {
+      return `${Math.floor(price).toLocaleString()}`
+    } else {
+      return `$${price.toFixed(2)}`
+    }
+  }
   // 데이터가 없으면 표시하지 않음
   if (!low || !high || low >= high) {
     return null
@@ -43,19 +66,19 @@ export const PriceRangeBar: React.FC<PriceRangeBarProps> = ({
         <div className="text-left">
           <div className="text-xs text-slate-500 mb-1">52주 최저</div>
           <div className="text-sm sm:text-base font-semibold text-slate-700">
-            ${low.toFixed(2)}
+            {low ? formatPrice(low, low_str) : '-'}
           </div>
         </div>
         <div className="text-center flex-1 mx-4">
           <div className="text-xs text-slate-500 mb-1">현재가</div>
           <div className="text-base sm:text-lg font-bold text-slate-900">
-            ${current.toFixed(2)}
+            {formatPrice(current, current_str)}
           </div>
         </div>
         <div className="text-right">
           <div className="text-xs text-slate-500 mb-1">52주 최고</div>
           <div className="text-sm sm:text-base font-semibold text-slate-700">
-            ${high.toFixed(2)}
+            {high ? formatPrice(high, high_str) : '-'}
           </div>
         </div>
       </div>
@@ -101,7 +124,7 @@ export const PriceRangeBar: React.FC<PriceRangeBarProps> = ({
             }}
           >
             <div className="bg-slate-900 text-white text-xs font-semibold px-2 py-1 rounded-md shadow-md">
-              ${current.toFixed(2)}
+              {formatPrice(current, current_str)}
             </div>
             <div
               className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent border-t-slate-900"

@@ -31,7 +31,7 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
       <div className="search-box">
         <input
           type="text"
-          placeholder="티커를 입력하세요 (예: AAPL, TSLA, SCHD)"
+          placeholder="티커 또는 종목명을 입력하세요 (예: NVDA, 엔비디아, 삼성전자)"
           value={ticker}
           onChange={(e) => onTickerChange(e.target.value)}
           onKeyPress={handleKeyPress}

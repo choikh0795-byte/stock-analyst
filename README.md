@@ -37,7 +37,7 @@ pip install -r requirements.txt
 # OPENAI_API_KEY=your_api_key_here
 
 # 서버 실행
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 서버는 `http://localhost:8000`에서 실행됩니다.

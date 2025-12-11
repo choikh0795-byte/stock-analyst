@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     HOST: str = "0.0.0.0"
     PORT: int = 8000
     
+    # 데이터베이스 설정
+    DATABASE_URL: str = ""
+    
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

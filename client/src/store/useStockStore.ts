@@ -10,6 +10,8 @@ interface StockStore {
   isLoading: boolean
   error: string | null
   ticker: string
+  resolvedTicker: string | null // 변환된 티커 (검색에 사용된 실제 티커)
+  originalQuery: string | null // 사용자가 입력한 원본 검색어
 
   // Actions
   setSearchStatus: (status: boolean) => void
@@ -19,6 +21,8 @@ interface StockStore {
   setIsLoading: (loading: boolean) => void
   setError: (error: string | null) => void
   setTicker: (ticker: string) => void
+  setResolvedTicker: (ticker: string | null) => void
+  setOriginalQuery: (query: string | null) => void
   reset: () => void
 }
 
@@ -35,6 +39,8 @@ export const useStockStore = create<StockStore>((set) => ({
   isLoading: false,
   error: null,
   ticker: '',
+  resolvedTicker: null,
+  originalQuery: null,
 
   // Actions
   setSearchStatus: (status: boolean) => set({ hasSearched: status }),
@@ -44,6 +50,8 @@ export const useStockStore = create<StockStore>((set) => ({
   setIsLoading: (loading: boolean) => set({ isLoading: loading }),
   setError: (error: string | null) => set({ error }),
   setTicker: (ticker: string) => set({ ticker }),
+  setResolvedTicker: (ticker: string | null) => set({ resolvedTicker: ticker }),
+  setOriginalQuery: (query: string | null) => set({ originalQuery: query }),
   reset: () =>
     set({
       hasSearched: false,
@@ -53,6 +61,8 @@ export const useStockStore = create<StockStore>((set) => ({
       isLoading: false,
       error: null,
       ticker: '',
+      resolvedTicker: null,
+      originalQuery: null,
     }),
 }))
 

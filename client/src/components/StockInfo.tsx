@@ -24,7 +24,9 @@ export const StockInfo: React.FC<StockInfoProps> = ({ data }) => {
         <div className="metric-card">
           <div className="metric-label">현재가</div>
           <div className="metric-value">
-            ${data.current_price}
+            {data.current_price_str || (data.currency === 'KRW' 
+              ? `${Math.floor(data.current_price).toLocaleString()}원` 
+              : `$${data.current_price.toFixed(2)}`)}
             {data.current_price !== data.previous_close && (
               <span className={`delta ${isPositive ? 'positive' : 'negative'}`}>
                 {isPositive ? '+' : ''}

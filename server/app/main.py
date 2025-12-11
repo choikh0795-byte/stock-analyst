@@ -1,7 +1,11 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
+from app.core.database import engine, Base
 from app.api.v1 import api_router
+from app.models import StockAnalysisLog
+from app.services.stock import StockService  # [추가] 서비스 로딩을 위해 import
 import logging
 
 # 로깅 설정
@@ -11,6 +15,33 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    서버 수명 주기 관리 (Startup & Shutdown)
+    서버가 시작되기 전 무거운 작업을 미리 처리합니다.
+    """
+    # [Startup] 서버 시작 시 실행
+    logger.info("🚀 [Startup] 서버 시작 프로세스 진입")
+
+    # 1. 주식 종목 데이터(KRX 등) 미리 로딩 (최초 1회 지연 발생 구간)
+    # 이 작업이 끝나야 서버가 'Ready' 상태가 됩니다.
+    logger.info("⏳ [Startup] 주식 종목 데이터(Ticker) 메모리 캐싱 시작...")
+    try:
+        # StockService의 클래스 메서드를 호출하여 메모리에 로딩
+        StockService._load_ticker_cache()
+        logger.info("✅ [Startup] 주식 종목 데이터 로딩 완료! (사용자 요청 시 지연 없음)")
+    except Exception as e:
+        logger.error(f"❌ [Startup] 주식 종목 데이터 로딩 실패: {e}")
+        # 실패하더라도 서버는 켜지도록 예외를 억제하거나, 
+        # 필수 데이터라면 여기서 raise 하여 서버 시작을 막을 수도 있음
+
+    yield  # 애플리케이션 작동 구간 (여기서부터 API 요청 수신)
+
+    # [Shutdown] 서버 종료 시 실행 (필요 시 리소스 정리)
+    logger.info("👋 [Shutdown] 서버 종료 프로세스 진행 중...")
 
 
 def create_application() -> FastAPI:
@@ -24,8 +55,19 @@ def create_application() -> FastAPI:
         title=settings.API_TITLE,
         version=settings.API_VERSION,
         docs_url="/docs",
-        redoc_url="/redoc"
+        redoc_url="/redoc",
+        lifespan=lifespan  # [추가] 수명 주기 관리자 등록
     )
+    
+    # 데이터베이스 테이블 자동 생성
+    if settings.DATABASE_URL:
+        try:
+            Base.metadata.create_all(bind=engine)
+            logger.info("[Database] 테이블 생성 완료")
+        except Exception as e:
+            logger.error(f"[Database] 테이블 생성 실패: {e}")
+    else:
+        logger.warning("[Database] DATABASE_URL이 설정되지 않아 테이블 생성을 건너뜁니다.")
     
     # CORS 설정
     app.add_middleware(
@@ -55,10 +97,11 @@ app = create_application()
 
 if __name__ == "__main__":
     import uvicorn
+    # 로컬 개발 시에는 워커 1개이므로 한 번만 로딩됩니다.
+    # 배포 시(gunicorn 등) 워커가 여러 개면 워커 수만큼 로딩 로그가 뜹니다.
     uvicorn.run(
         "app.main:app",
         host=settings.HOST,
         port=settings.PORT,
         reload=True
     )
-

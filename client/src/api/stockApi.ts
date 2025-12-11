@@ -97,6 +97,15 @@ class StockApiClient {
           ticker: request.ticker.toUpperCase(),
         }
       )
+      // 디버그 로그: 백엔드 응답 원본 확인
+      console.info('[StockApi][Response] /analyze stock_data', {
+        roe: response.data?.stock_data?.roe,
+        roe_str: response.data?.stock_data?.roe_str,
+        return_on_equity: response.data?.stock_data?.return_on_equity,
+        volatility: response.data?.stock_data?.volatility,
+        volatility_str: response.data?.stock_data?.volatility_str,
+        beta: response.data?.stock_data?.beta,
+      })
       return response.data
     } catch (error) {
       if (axios.isAxiosError(error)) {
@@ -126,6 +135,28 @@ class StockApiClient {
       if (axios.isAxiosError(error)) {
         throw new Error(
           error.response?.data?.detail || 'AI 분석 중 오류가 발생했습니다.'
+        )
+      }
+      throw error
+    }
+  }
+
+  /**
+   * 종목명이나 기업명을 티커로 변환
+   * @param query 검색어 (한글 종목명, 기업명, 티커 모두 가능)
+   * @returns 변환된 티커
+   */
+  async searchTicker(query: string): Promise<{ ticker: string; name?: string }> {
+    try {
+      const response = await this.axiosInstance.post<{ ticker: string; name?: string }>(
+        '/api/v1/stock/search',
+        { query: query.trim() }
+      )
+      return response.data
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        throw new Error(
+          error.response?.data?.detail || '티커 검색 중 오류가 발생했습니다.'
         )
       }
       throw error

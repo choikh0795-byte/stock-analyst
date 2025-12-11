@@ -11,6 +11,12 @@ class StockInfo(BaseModel):
     market_cap: Optional[str] = None
     pe_ratio: Optional[float] = None
     pb_ratio: Optional[float] = None
+    # ROE/변동성 (백엔드 계산 결과)
+    roe: Optional[float] = None
+    roe_str: Optional[str] = None
+    volatility: Optional[float] = None
+    volatility_str: Optional[str] = None
+    # 구버전 호환 필드
     return_on_equity: Optional[float] = None
     sector: str
     summary: str
@@ -24,6 +30,14 @@ class StockInfo(BaseModel):
     dividend_yield: Optional[float] = None
     # 지표별 AI 인사이트 (각 지표에 대한 한 문장 평가)
     metric_insights: Optional[Dict[str, str]] = None
+    # 백엔드에서 포맷팅된 가격 문자열 (한국: "58,800원", 미국: "$145.20")
+    current_price_str: Optional[str] = None
+    previous_close_str: Optional[str] = None
+    fifty_two_week_low_str: Optional[str] = None
+    fifty_two_week_high_str: Optional[str] = None
+    target_mean_price_str: Optional[str] = None
+    market_cap_str: Optional[str] = None
+    currency: Optional[str] = None
 
     class Config:
         json_schema_extra = {
@@ -35,6 +49,10 @@ class StockInfo(BaseModel):
                 "market_cap": "2800000000000",
                 "pe_ratio": 30.5,
                 "pb_ratio": 1.5,
+                "roe": 18.5,
+                "roe_str": "18.5%",
+                "volatility": 0.95,
+                "volatility_str": "0.95 (Beta)",
                 "return_on_equity": 0.25,
                 "sector": "Technology",
                 "summary": "Apple Inc. designs, manufactures...",
@@ -92,3 +110,28 @@ class AIAnalysisResponse(BaseModel):
             }
         }
 
+
+class TickerSearchRequest(BaseModel):
+    """티커 검색 요청 스키마"""
+    query: str
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "query": "엔비디아"
+            }
+        }
+
+
+class TickerSearchResponse(BaseModel):
+    """티커 검색 응답 스키마"""
+    ticker: str
+    name: Optional[str] = None
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "ticker": "NVDA",
+                "name": "NVIDIA Corporation"
+            }
+        }

@@ -1,0 +1,37 @@
+{
+    "ticker_map_sample": {
+        "삼성전자": "005930.KS",
+        "SK하이닉스": "000660.KS",
+        "LG에너지솔루션": "373220.KS",
+        "삼성바이오로직스": "207940.KS",
+        "삼성전자우": "005935.KS"
+    },
+    "fundamental_map_sample": {
+        "005930.KS": {
+            "per": 0.0,
+            "pbr": 0.0,
+            "dividend_yield": 0.0
+        },
+        "000660.KS": {
+            "per": 0.0,
+            "pbr": 0.0,
+            "dividend_yield": 0.0
+        },
+        "373220.KS": {
+            "per": 0.0,
+            "pbr": 0.0,
+            "dividend_yield": 0.0
+        },
+        "207940.KS": {
+            "per": 0.0,
+            "pbr": 0.0,
+            "dividend_yield": 0.0
+        },
+        "005935.KS": {
+            "per": 0.0,
+            "pbr": 0.0,
+            "dividend_yield": 0.0
+        }
+    },
+    "total_count": 2723
+}

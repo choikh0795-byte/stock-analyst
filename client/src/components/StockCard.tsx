@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import type { StockInfo, AIAnalysis } from '../types/stock'
 import { calculatePriceChange, getSignalColor } from '../utils/stockUtils'
 import { PriceRangeBar } from './PriceRangeBar'
@@ -42,9 +42,47 @@ export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
   // 지표 값 변환
   const peRatio = toNumber(data.pe_ratio)
   const pbRatio = toNumber(data.pb_ratio)
-  const returnOnEquity = toNumber(data.return_on_equity)
-  const dividendYield = toNumber(data.dividend_yield)
-  const beta = toNumber(data.beta)
+  // ROE: 백엔드 계산(%) 우선, 없으면 과거 필드(return_on_equity: 소수) 사용
+  const roePercent = toNumber(data.roe) ?? (toNumber(data.return_on_equity) !== null
+    ? (toNumber(data.return_on_equity) as number) * 100
+    : null)
+  const isKoreanStock = data.currency === 'KRW'
+  const dividendYieldRaw = toNumber(data.dividend_yield)
+  const dividendYieldPct = dividendYieldRaw !== null
+    ? (isKoreanStock
+      ? (dividendYieldRaw > 1 ? dividendYieldRaw : dividendYieldRaw * 100)
+      : dividendYieldRaw)
+    : null
+  const volatilityValue = toNumber(data.volatility) ?? toNumber(data.beta)
+  const volatilityLabel = data.volatility_str ?? (volatilityValue !== null ? volatilityValue.toFixed(2) : 'N/A')
+  const roeLabel = data.roe_str ?? (roePercent !== null ? `${roePercent.toFixed(1)}%` : 'N/A')
+
+  // 디버그 로그: 렌더 직전 값 확인
+  useEffect(() => {
+    console.info('[StockCard][render] metrics', {
+      symbol: data.symbol,
+      roe: data.roe,
+      roe_str: data.roe_str,
+      roePercent,
+      return_on_equity: data.return_on_equity,
+      volatility: data.volatility,
+      volatility_str: data.volatility_str,
+      beta: data.beta,
+      volatilityValue,
+      volatilityLabel,
+    })
+  }, [
+    data.symbol,
+    data.roe,
+    data.roe_str,
+    data.return_on_equity,
+    data.volatility,
+    data.volatility_str,
+    data.beta,
+    roePercent,
+    volatilityValue,
+    volatilityLabel,
+  ])
 
   // 6개 고정 지표 배열 생성 (항상 6개 표시, 값이 없으면 'N/A')
   const metricCards = [
@@ -74,34 +112,32 @@ export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
     },
     // 3. ROE
     {
-      key: 'return_on_equity',
+      key: 'roe',
       label: 'ROE',
-      value: returnOnEquity !== null 
-        ? `${(returnOnEquity * 100).toFixed(1)}%` 
-        : 'N/A',
-      comment: returnOnEquity !== null && returnOnEquity >= 0.15 
+      value: roeLabel,
+      comment: roePercent !== null && roePercent >= 15 
         ? '15%이상 우수' 
         : null,
       Icon: TrendingUp,
     },
-    // 4. 배당률
+    // 4. 배당수익률
     {
       key: 'dividend_yield',
-      label: '배당률',
-      value: dividendYield !== null 
-        ? `${(dividendYield * 100).toFixed(2)}%` 
+      label: '배당수익률',
+      value: dividendYieldPct !== null 
+        ? `${dividendYieldPct.toFixed(2)}%` 
         : 'N/A',
       comment: null,
       Icon: Coins,
     },
-    // 5. 변동성 (Beta)
+    // 5. 변동성 (Beta 또는 Historical)
     {
-      key: 'beta',
+      key: 'volatility',
       label: '변동성',
-      value: beta !== null 
-        ? beta.toFixed(2) 
-        : 'N/A',
-      comment: beta !== null ? 'Beta' : null,
+      value: volatilityLabel,
+      comment: data.volatility_str
+        ? (data.volatility_str.includes('Beta') ? 'Beta' : '1년 변동성')
+        : (volatilityValue !== null ? 'Beta' : null),
       Icon: Activity,
     },
     // 6. 목표가
@@ -143,7 +179,10 @@ export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
               {/* 가격 및 등락률 */}
               <div className="flex flex-col items-end justify-center flex-shrink-0">
                 <div className="text-xl sm:text-2xl font-bold text-slate-900 mb-1 whitespace-nowrap">
-                  ${data.current_price.toFixed(2)}
+                  {data.current_price_str || 
+                    (data.currency === 'KRW' 
+                      ? `${Math.floor(data.current_price).toLocaleString()}원`
+                      : `$${data.current_price.toFixed(2)}`)}
                 </div>
                 <div
                   className={`text-sm sm:text-base font-semibold whitespace-nowrap ${
@@ -209,6 +248,10 @@ export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
                     current={data.current_price}
                     low={data.fifty_two_week_low}
                     high={data.fifty_two_week_high}
+                    currency={data.currency}
+                    current_str={data.current_price_str}
+                    low_str={data.fifty_two_week_low_str}
+                    high_str={data.fifty_two_week_high_str}
                   />
                 </div>
               )}
@@ -227,6 +270,9 @@ export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
                       onClick={() => setSelectedMetric(metric.key)}
                       className="group bg-slate-50 rounded-xl p-3 border border-slate-100 hover:bg-slate-100 hover:border-slate-300 hover:-translate-y-1 hover:shadow-md active:translate-y-0 active:shadow-sm transition-all duration-200 cursor-pointer text-left relative"
                     >
+                      {/* 우측 상단 ChevronRight 아이콘 */}
+                      <ChevronRight className="absolute top-2 right-2 w-4 h-4 text-gray-400" />
+                      
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                           <IconComponent className="w-4 h-4 text-slate-600" />
@@ -234,7 +280,6 @@ export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
                             {metric.label}
                           </span>
                         </div>
-                        <ChevronRight className="w-3 h-3 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
                       </div>
                       <div className="mb-1">
                         <span className={`text-lg font-bold ${metric.color || 'text-slate-900'}`}>

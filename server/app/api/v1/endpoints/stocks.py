@@ -1,14 +1,18 @@
 from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.orm import Session
 from typing import Dict, List
 from app.schemas.stock import (
     StockInfo,
     StockAnalysisRequest,
     StockAnalysisResponse,
-    AIAnalysisResponse
+    AIAnalysisResponse,
+    TickerSearchRequest,
+    TickerSearchResponse,
 )
-from app.services.stock_service import StockService
+from app.services.stock import StockService
 from app.services.ai_service import AIService
 from app.core.dependencies import get_stock_service, get_ai_service
+from app.core.database import get_db
 import logging
 
 logger = logging.getLogger(__name__)
@@ -16,10 +20,37 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+@router.post("/search", response_model=TickerSearchResponse)
+async def search_ticker(
+    request: TickerSearchRequest,
+    stock_service: StockService = Depends(get_stock_service)
+) -> TickerSearchResponse:
+    """
+    종목명이나 기업명을 티커로 변환합니다.
+    
+    Args:
+        request: 검색 요청 데이터 (한글 종목명, 기업명, 티커 모두 가능)
+        stock_service: 주입받은 StockService 인스턴스
+        
+    Returns:
+        TickerSearchResponse: 변환된 티커와 종목명
+    """
+    try:
+        ticker = stock_service.search_ticker(request.query)
+        return TickerSearchResponse(ticker=ticker)
+    except ValueError as e:
+        logger.error(f"[Stocks Router] Ticker search error: {e}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"[Stocks Router] Unexpected error: {e}")
+        raise HTTPException(status_code=500, detail=f"서버 오류가 발생했습니다: {str(e)}")
+
+
 @router.get("/{ticker}")
 async def get_stock(
     ticker: str,
-    stock_service: StockService = Depends(get_stock_service)
+    stock_service: StockService = Depends(get_stock_service),
+    db: Session = Depends(get_db)
 ) -> Dict:
     """
     티커로 주식 정보를 가져옵니다.
@@ -27,12 +58,13 @@ async def get_stock(
     Args:
         ticker: 주식 티커 심볼
         stock_service: 주입받은 StockService 인스턴스
+        db: 데이터베이스 세션
         
     Returns:
         Dict: 주식 정보와 뉴스
     """
     try:
-        stock_data, news = stock_service.get_stock_info(ticker.upper())
+        stock_data, news = stock_service.get_stock_info(ticker.upper(), db)
         return {
             "stock_data": stock_data,
             "news": news
@@ -49,7 +81,8 @@ async def get_stock(
 async def analyze_stock(
     request: StockAnalysisRequest,
     stock_service: StockService = Depends(get_stock_service),
-    ai_service: AIService = Depends(get_ai_service)
+    ai_service: AIService = Depends(get_ai_service),
+    db: Session = Depends(get_db)
 ) -> StockAnalysisResponse:
     """
     주식 정보를 가져오고 AI 분석을 수행합니다.
@@ -58,6 +91,7 @@ async def analyze_stock(
         request: 주식 분석 요청 데이터
         stock_service: 주입받은 StockService 인스턴스
         ai_service: 주입받은 AIService 인스턴스
+        db: 데이터베이스 세션
         
     Returns:
         StockAnalysisResponse: 주식 정보, 뉴스, AI 분석 결과
@@ -66,7 +100,7 @@ async def analyze_stock(
         ticker = request.ticker.upper()
         
         # 주식 정보 가져오기
-        stock_data, news = stock_service.get_stock_info(ticker)
+        stock_data, news = stock_service.get_stock_info(ticker, db)
         
         # AI 분석 수행
         ai_analysis = ai_service.analyze_stock(stock_data, news)
@@ -92,7 +126,8 @@ async def analyze_stock(
 async def analyze_stock_ai_only(
     request: StockAnalysisRequest,
     stock_service: StockService = Depends(get_stock_service),
-    ai_service: AIService = Depends(get_ai_service)
+    ai_service: AIService = Depends(get_ai_service),
+    db: Session = Depends(get_db)
 ) -> AIAnalysisResponse:
     """
     주식 정보를 가져온 후 AI 분석만 수행합니다.
@@ -101,6 +136,7 @@ async def analyze_stock_ai_only(
         request: 주식 분석 요청 데이터
         stock_service: 주입받은 StockService 인스턴스
         ai_service: 주입받은 AIService 인스턴스
+        db: 데이터베이스 세션
         
     Returns:
         AIAnalysisResponse: AI 분석 결과만
@@ -109,7 +145,7 @@ async def analyze_stock_ai_only(
         ticker = request.ticker.upper()
         
         # 주식 정보 가져오기
-        stock_data, news = stock_service.get_stock_info(ticker)
+        stock_data, news = stock_service.get_stock_info(ticker, db)
         
         # AI 분석 수행
         ai_analysis = ai_service.analyze_stock(stock_data, news)

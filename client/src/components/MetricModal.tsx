@@ -54,13 +54,36 @@ export const MetricModal: React.FC<MetricModalProps> = ({
   const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     pe_ratio: Tag,
     pb_ratio: Building2,
+    roe: TrendingUp,
     return_on_equity: TrendingUp,
     dividend_yield: Coins,
     beta: Activity,
+    volatility: Activity,
     target_mean_price: Target,
   }
 
   const IconComponent = iconMap[metricKey] || Tag
+
+  const normalizeDividendYield = () => {
+    const isKoreanStock = stockData.currency === 'KRW'
+    const raw = stockData.dividend_yield
+    if (raw === null || raw === undefined) return { ratio: null, percent: null }
+
+    const numeric = typeof raw === 'number' ? raw : parseFloat(String(raw))
+    if (Number.isNaN(numeric)) return { ratio: null, percent: null }
+
+    const ratio = isKoreanStock
+      ? (numeric > 1 ? numeric / 100 : numeric)
+      : numeric
+    return {
+      ratio,
+      percent: isKoreanStock
+        ? (numeric > 1 ? numeric : numeric * 100)
+        : numeric,
+    }
+  }
+
+  const dividendYieldNormalized = normalizeDividendYield()
 
   // 지표 값 가져오기
   const getMetricValue = (): string => {
@@ -73,18 +96,30 @@ export const MetricModal: React.FC<MetricModalProps> = ({
         return stockData.pb_ratio !== null && stockData.pb_ratio !== undefined
           ? `${stockData.pb_ratio.toFixed(1)}배`
           : 'N/A'
-      case 'return_on_equity':
-        return stockData.return_on_equity !== null && stockData.return_on_equity !== undefined
-          ? `${(stockData.return_on_equity * 100).toFixed(1)}%`
-          : 'N/A'
+      case 'roe':
+      case 'return_on_equity': {
+        // roe: 백엔드 계산(%) 우선, 없으면 구버전 소수값 사용
+        const roePercent = stockData.roe ?? (stockData.return_on_equity !== undefined && stockData.return_on_equity !== null
+          ? stockData.return_on_equity * 100
+          : null)
+        if (roePercent !== null && roePercent !== undefined) {
+          return `${roePercent.toFixed(1)}%`
+        }
+        return stockData.roe_str || 'N/A'
+      }
       case 'dividend_yield':
-        return stockData.dividend_yield !== null && stockData.dividend_yield !== undefined
-          ? `${(stockData.dividend_yield * 100).toFixed(2)}%`
+        return dividendYieldNormalized.percent !== null && dividendYieldNormalized.percent !== undefined
+          ? `${dividendYieldNormalized.percent.toFixed(2)}%`
           : 'N/A'
       case 'beta':
         return stockData.beta !== null && stockData.beta !== undefined
           ? stockData.beta.toFixed(2)
           : 'N/A'
+      case 'volatility':
+        return stockData.volatility_str
+          || (stockData.volatility !== null && stockData.volatility !== undefined
+            ? stockData.volatility.toFixed(2)
+            : (stockData.beta !== null && stockData.beta !== undefined ? stockData.beta.toFixed(2) : 'N/A'))
       case 'target_mean_price':
         if (stockData.target_mean_price && stockData.current_price) {
           const upside = ((stockData.target_mean_price - stockData.current_price) / stockData.current_price) * 100
@@ -166,10 +201,13 @@ export const MetricModal: React.FC<MetricModalProps> = ({
           }
         }
         break
-      case 'return_on_equity':
-        const roe = stockData.return_on_equity
-        if (roe !== null && roe !== undefined) {
-          if (roe >= 0.15) {
+      case 'roe':
+      case 'return_on_equity': {
+        const roePercent = stockData.roe ?? (stockData.return_on_equity !== undefined && stockData.return_on_equity !== null
+          ? stockData.return_on_equity * 100
+          : null)
+        if (roePercent !== null && roePercent !== undefined) {
+          if (roePercent >= 15) {
             return {
               status: '우수',
               colorClass: 'text-emerald-600',
@@ -177,7 +215,7 @@ export const MetricModal: React.FC<MetricModalProps> = ({
               textColor: 'text-emerald-700',
             }
           }
-          if (roe >= 0.1) {
+          if (roePercent >= 10) {
             return {
               status: '양호',
               colorClass: 'text-slate-600',
@@ -193,10 +231,11 @@ export const MetricModal: React.FC<MetricModalProps> = ({
           }
         }
         break
+      }
       case 'dividend_yield':
-        const div = stockData.dividend_yield
-        if (div !== null && div !== undefined) {
-          if (div >= 0.05) {
+        const divRatio = dividendYieldNormalized.ratio
+        if (divRatio !== null && divRatio !== undefined) {
+          if (divRatio >= 0.05) {
             return {
               status: '높은 배당',
               colorClass: 'text-emerald-600',
@@ -204,7 +243,7 @@ export const MetricModal: React.FC<MetricModalProps> = ({
               textColor: 'text-emerald-700',
             }
           }
-          if (div >= 0.02) {
+          if (divRatio >= 0.02) {
             return {
               status: '적정',
               colorClass: 'text-slate-600',
@@ -221,9 +260,10 @@ export const MetricModal: React.FC<MetricModalProps> = ({
         }
         break
       case 'beta':
-        const beta = stockData.beta
-        if (beta !== null && beta !== undefined) {
-          if (beta <= 0.8) {
+      case 'volatility': {
+        const vol = stockData.volatility ?? stockData.beta
+        if (vol !== null && vol !== undefined) {
+          if (vol <= 0.8) {
             return {
               status: '안정적',
               colorClass: 'text-emerald-600',
@@ -231,7 +271,7 @@ export const MetricModal: React.FC<MetricModalProps> = ({
               textColor: 'text-emerald-700',
             }
           }
-          if (beta <= 1.2) {
+          if (vol <= 1.2) {
             return {
               status: '보통',
               colorClass: 'text-slate-600',
@@ -247,6 +287,7 @@ export const MetricModal: React.FC<MetricModalProps> = ({
           }
         }
         break
+      }
       case 'target_mean_price':
         if (stockData.target_mean_price && stockData.current_price) {
           const upside = ((stockData.target_mean_price - stockData.current_price) / stockData.current_price) * 100

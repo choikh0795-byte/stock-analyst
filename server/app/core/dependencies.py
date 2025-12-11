@@ -1,5 +1,5 @@
 from functools import lru_cache
-from app.services.stock_service import StockService
+from app.services.stock import StockService
 from app.services.ai_service import AIService
 from app.core.config import settings
 

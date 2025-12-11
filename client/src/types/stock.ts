@@ -7,13 +7,27 @@ export interface StockInfo {
   symbol: string
   current_price: number
   previous_close: number
+  // 백엔드에서 포맷팅된 가격 문자열 (완성된 문자열)
+  current_price_str?: string
+  previous_close_str?: string
+  fifty_two_week_low_str?: string | null
+  fifty_two_week_high_str?: string | null
+  target_mean_price_str?: string | null
   market_cap: string | null
+  market_cap_str?: string
+  currency?: string
   pe_ratio?: number | null
   pb_ratio?: number | null
+  // 백엔드 계산된 ROE/변동성 (신규)
+  roe?: number | null
+  roe_str?: string | null
+  volatility?: number | null
+  volatility_str?: string | null
+  // 구버전 호환 필드 (yfinance 원본)
   return_on_equity?: number | null
   sector: string
   summary: string
-  // 6가지 핵심 지표
+  // 6가지 핵심 지표 (원본 숫자 값 - 계산용)
   fifty_two_week_low?: number | null
   fifty_two_week_high?: number | null
   target_mean_price?: number | null
@@ -26,8 +40,10 @@ export interface StockInfo {
     pe_ratio?: string
     pb_ratio?: string
     return_on_equity?: string
+    roe?: string
     dividend_yield?: string
     beta?: string
+    volatility?: string
     target_mean_price?: string
   } | null
 }
