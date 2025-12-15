@@ -11,14 +11,15 @@ class StockInfo(BaseModel):
     market_cap: Optional[str] = None
     pe_ratio: Optional[float] = None
     pb_ratio: Optional[float] = None
-    # ROE/변동성 (백엔드 계산 결과)
+    # ROE/EPS (백엔드 계산 결과)
     roe: Optional[float] = None
     roe_str: Optional[str] = None
-    volatility: Optional[float] = None
-    volatility_str: Optional[str] = None
+    eps: Optional[float] = None
+    eps_str: Optional[str] = None
     # 구버전 호환 필드
     return_on_equity: Optional[float] = None
     sector: str
+    industry: Optional[str] = None  # AI 분석을 위한 산업 정보
     summary: str
     # 6가지 핵심 지표
     fifty_two_week_low: Optional[float] = None
@@ -51,8 +52,8 @@ class StockInfo(BaseModel):
                 "pb_ratio": 1.5,
                 "roe": 18.5,
                 "roe_str": "18.5%",
-                "volatility": 0.95,
-                "volatility_str": "0.95 (Beta)",
+                "eps": 5.40,
+                "eps_str": "$5.40",
                 "return_on_equity": 0.25,
                 "sector": "Technology",
                 "summary": "Apple Inc. designs, manufactures...",
@@ -88,7 +89,7 @@ class StockAnalysisResponse(BaseModel):
 
 class AIAnalysisResponse(BaseModel):
     """AI 분석 결과 스키마"""
-    score: int
+    score: float
     signal: str
     one_line: str
     summary: List[str]
@@ -98,7 +99,7 @@ class AIAnalysisResponse(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "score": 75,
+                "score": 78.4,
                 "signal": "매수",
                 "one_line": "강력한 성장세와 안정적인 재무구조를 보유한 우량주",
                 "summary": [

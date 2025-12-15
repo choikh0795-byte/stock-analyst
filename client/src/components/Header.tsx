@@ -1,5 +1,6 @@
 import React from 'react'
 import { useStockStore } from '../store/useStockStore'
+import { useUpdateLogStore } from '../stores/useUpdateLogStore'
 import './Header.css'
 
 /**
@@ -7,6 +8,7 @@ import './Header.css'
  */
 export const Header: React.FC = () => {
   const hasSearched = useStockStore((state) => state.hasSearched)
+  const openUpdateModal = useUpdateLogStore((state) => state.openModal)
 
   return (
     <header
@@ -21,17 +23,30 @@ export const Header: React.FC = () => {
         복잡한 주식 정보, 3초 만에 핵심만
       </p>
       {hasSearched && (
-        <p className="subtitle text-base text-slate-600 mt-2">
-          개발자 블로그:{' '}
-          <a
-            href="https://blog.naver.com/cjhol2107"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-600 underline hover:text-blue-700 transition-colors"
+        <div className="subtitle mt-3 flex flex-wrap items-center justify-center gap-3 text-sm text-slate-600">
+          <span className="flex items-center gap-1">
+            <span className="text-base">개발자 블로그:</span>
+            <a
+              href="https://blog.naver.com/cjhol2107"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 underline hover:text-blue-700 transition-colors"
+            >
+              https://blog.naver.com/cjhol2107
+            </a>
+          </span>
+          <button
+            type="button"
+            onClick={openUpdateModal}
+            className="flex items-center gap-2 rounded-full border border-indigo-100 bg-indigo-50 px-3 py-1 text-[13px] font-medium text-indigo-700 transition hover:border-indigo-200 hover:bg-indigo-100"
           >
-            https://blog.naver.com/cjhol2107
-          </a>
-        </p>
+            <span className="inline-flex h-2.5 w-2.5 rounded-full bg-indigo-500" aria-hidden />
+            업데이트
+            <span className="rounded-full bg-indigo-600 px-1.5 py-0.5 text-[11px] font-semibold text-white">
+              New
+            </span>
+          </button>
+        </div>
       )}
     </header>
   )

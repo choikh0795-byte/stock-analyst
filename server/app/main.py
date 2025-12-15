@@ -1,12 +1,15 @@
 from contextlib import asynccontextmanager
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.core.config import settings
-from app.core.database import engine, Base
+
+from app.api.routers import update_log_router
 from app.api.v1 import api_router
+from app.core.config import settings
+from app.core.database import Base, engine
 from app.models import StockAnalysisLog
 from app.services.stock import StockService  # [추가] 서비스 로딩을 위해 import
-import logging
 
 # 로깅 설정
 logging.basicConfig(
@@ -80,6 +83,7 @@ def create_application() -> FastAPI:
     
     # API 라우터 등록
     app.include_router(api_router, prefix="/api/v1")
+    app.include_router(update_log_router)
     
     @app.get("/")
     async def root():

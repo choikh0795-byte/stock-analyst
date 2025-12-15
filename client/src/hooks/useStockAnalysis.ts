@@ -102,8 +102,8 @@ export const useStockAnalysis = (): UseStockAnalysisReturn => {
         roe: response.stock_data?.roe,
         roe_str: response.stock_data?.roe_str,
         return_on_equity: response.stock_data?.return_on_equity,
-        volatility: response.stock_data?.volatility,
-        volatility_str: response.stock_data?.volatility_str,
+        eps: response.stock_data?.eps,
+        eps_str: response.stock_data?.eps_str,
         beta: response.stock_data?.beta,
       })
       setStockData(response.stock_data)

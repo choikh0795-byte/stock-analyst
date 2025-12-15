@@ -3,7 +3,7 @@ import type { StockInfo, AIAnalysis } from '../types/stock'
 import { calculatePriceChange, getSignalColor } from '../utils/stockUtils'
 import { PriceRangeBar } from './PriceRangeBar'
 import { MetricModal } from './MetricModal'
-import { Tag, Building2, TrendingUp, Coins, Activity, Target, ChevronRight } from 'lucide-react'
+import { Tag, Building2, TrendingUp, Coins, DollarSign, Target, ChevronRight, CheckCircle2 } from 'lucide-react'
 
 interface StockCardProps {
   data: StockInfo
@@ -48,13 +48,9 @@ export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
     : null)
   const isKoreanStock = data.currency === 'KRW'
   const dividendYieldRaw = toNumber(data.dividend_yield)
-  const dividendYieldPct = dividendYieldRaw !== null
-    ? (isKoreanStock
-      ? (dividendYieldRaw > 1 ? dividendYieldRaw : dividendYieldRaw * 100)
-      : dividendYieldRaw)
-    : null
-  const volatilityValue = toNumber(data.volatility) ?? toNumber(data.beta)
-  const volatilityLabel = data.volatility_str ?? (volatilityValue !== null ? volatilityValue.toFixed(2) : 'N/A')
+  const dividendYieldPct = dividendYieldRaw 
+  const epsValue = toNumber(data.eps)
+  const epsLabel = data.eps_str ?? (epsValue !== null ? (isKoreanStock ? `${Math.floor(epsValue).toLocaleString()}원` : `$${epsValue.toFixed(2)}`) : 'N/A')
   const roeLabel = data.roe_str ?? (roePercent !== null ? `${roePercent.toFixed(1)}%` : 'N/A')
 
   // 디버그 로그: 렌더 직전 값 확인
@@ -65,24 +61,59 @@ export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
       roe_str: data.roe_str,
       roePercent,
       return_on_equity: data.return_on_equity,
-      volatility: data.volatility,
-      volatility_str: data.volatility_str,
-      beta: data.beta,
-      volatilityValue,
-      volatilityLabel,
+      eps: data.eps,
+      eps_str: data.eps_str,
+      epsValue,
+      epsLabel,
     })
   }, [
     data.symbol,
     data.roe,
     data.roe_str,
     data.return_on_equity,
-    data.volatility,
-    data.volatility_str,
-    data.beta,
+    data.eps,
+    data.eps_str,
     roePercent,
-    volatilityValue,
-    volatilityLabel,
+    epsValue,
+    epsLabel,
   ])
+
+  // 지표 상태 판단 함수
+  const getMetricStatus = (key: string, value: number | null): { status: string; badgeClass: string } => {
+    switch (key) {
+      case 'pe_ratio':
+        if (value === null) return { status: 'N/A', badgeClass: 'bg-slate-100 text-slate-600' }
+        if (value <= 10) return { status: '저평가', badgeClass: 'bg-emerald-100 text-emerald-700' }
+        if (value <= 20) return { status: '적정', badgeClass: 'bg-slate-100 text-slate-600' }
+        return { status: '고평가', badgeClass: 'bg-rose-100 text-rose-700' }
+      case 'pb_ratio':
+        if (value === null) return { status: 'N/A', badgeClass: 'bg-slate-100 text-slate-600' }
+        if (value <= 1) return { status: '저평가', badgeClass: 'bg-emerald-100 text-emerald-700' }
+        if (value <= 2) return { status: '적정', badgeClass: 'bg-slate-100 text-slate-600' }
+        return { status: '고평가', badgeClass: 'bg-rose-100 text-rose-700' }
+      case 'roe':
+        if (value === null) return { status: 'N/A', badgeClass: 'bg-slate-100 text-slate-600' }
+        if (value >= 15) return { status: '우수', badgeClass: 'bg-emerald-100 text-emerald-700' }
+        if (value >= 10) return { status: '양호', badgeClass: 'bg-slate-100 text-slate-600' }
+        return { status: '개선필요', badgeClass: 'bg-rose-100 text-rose-700' }
+      case 'dividend_yield':
+        // 백엔드에서 이미 퍼센트 값(예: 0.11%)을 내려주므로 그대로 퍼센트 단위로 비교
+        if (value === null) return { status: 'N/A', badgeClass: 'bg-slate-100 text-slate-600' }
+        if (value >= 5) return { status: '높은배당', badgeClass: 'bg-emerald-100 text-emerald-700' }
+        if (value >= 2) return { status: '적정', badgeClass: 'bg-slate-100 text-slate-600' }
+        return { status: '낮은배당', badgeClass: 'bg-slate-100 text-slate-600' }
+      case 'eps':
+        if (value === null) return { status: 'N/A', badgeClass: 'bg-slate-100 text-slate-600' }
+        return { status: '데이터', badgeClass: 'bg-slate-100 text-slate-600' }
+      case 'target_mean_price':
+        if (value === null) return { status: 'N/A', badgeClass: 'bg-slate-100 text-slate-600' }
+        if (value > 10) return { status: '상승여력', badgeClass: 'bg-emerald-100 text-emerald-700' }
+        if (value > 0) return { status: '여력', badgeClass: 'bg-slate-100 text-slate-600' }
+        return { status: '주의', badgeClass: 'bg-rose-100 text-rose-700' }
+      default:
+        return { status: 'N/A', badgeClass: 'bg-slate-100 text-slate-600' }
+    }
+  }
 
   // 6개 고정 지표 배열 생성 (항상 6개 표시, 값이 없으면 'N/A')
   const metricCards = [
@@ -93,9 +124,8 @@ export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
       value: peRatio !== null 
         ? `${peRatio.toFixed(1)}배` 
         : 'N/A',
-      comment: peRatio !== null && peRatio <= 10 
-        ? '10이하 저평가' 
-        : null,
+      numericValue: peRatio,
+      status: getMetricStatus('pe_ratio', peRatio),
       Icon: Tag,
     },
     // 2. PBR
@@ -105,9 +135,8 @@ export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
       value: pbRatio !== null 
         ? `${pbRatio.toFixed(1)}배` 
         : 'N/A',
-      comment: pbRatio !== null && pbRatio <= 1 
-        ? '1이하 저평가' 
-        : null,
+      numericValue: pbRatio,
+      status: getMetricStatus('pb_ratio', pbRatio),
       Icon: Building2,
     },
     // 3. ROE
@@ -115,9 +144,8 @@ export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
       key: 'roe',
       label: 'ROE',
       value: roeLabel,
-      comment: roePercent !== null && roePercent >= 15 
-        ? '15%이상 우수' 
-        : null,
+      numericValue: roePercent,
+      status: getMetricStatus('roe', roePercent),
       Icon: TrendingUp,
     },
     // 4. 배당수익률
@@ -127,18 +155,18 @@ export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
       value: dividendYieldPct !== null 
         ? `${dividendYieldPct.toFixed(2)}%` 
         : 'N/A',
-      comment: null,
+      numericValue: dividendYieldRaw,
+      status: getMetricStatus('dividend_yield', dividendYieldRaw),
       Icon: Coins,
     },
-    // 5. 변동성 (Beta 또는 Historical)
+    // 5. EPS (주당순이익)
     {
-      key: 'volatility',
-      label: '변동성',
-      value: volatilityLabel,
-      comment: data.volatility_str
-        ? (data.volatility_str.includes('Beta') ? 'Beta' : '1년 변동성')
-        : (volatilityValue !== null ? 'Beta' : null),
-      Icon: Activity,
+      key: 'eps',
+      label: 'EPS',
+      value: epsLabel,
+      numericValue: epsValue,
+      status: getMetricStatus('eps', epsValue),
+      Icon: DollarSign,
     },
     // 6. 목표가
     {
@@ -147,9 +175,9 @@ export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
       value: targetUpside !== null 
         ? `${targetUpside > 0 ? '+' : ''}${targetUpside.toFixed(1)}%` 
         : 'N/A',
-      comment: targetUpside !== null ? '여력' : null,
+      numericValue: targetUpside,
+      status: getMetricStatus('target_mean_price', targetUpside),
       Icon: Target,
-      color: targetUpside !== null && targetUpside > 0 ? 'text-red-500' : null,
     },
   ]
 
@@ -200,7 +228,7 @@ export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
                   className="px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-white font-bold text-xs sm:text-sm shadow-sm whitespace-nowrap"
                   style={{ backgroundColor: signalColor }}
                 >
-                  {aiAnalysis.score}점
+                  {typeof aiAnalysis.score === 'number' ? aiAnalysis.score.toFixed(1) : aiAnalysis.score}점
                 </div>
               )}
               
@@ -268,31 +296,30 @@ export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
                     <button
                       key={index}
                       onClick={() => setSelectedMetric(metric.key)}
-                      className="group bg-slate-50 rounded-xl p-3 border border-slate-100 hover:bg-slate-100 hover:border-slate-300 hover:-translate-y-1 hover:shadow-md active:translate-y-0 active:shadow-sm transition-all duration-200 cursor-pointer text-left relative"
+                      className="group bg-white rounded-xl p-4 border border-slate-200 hover:bg-slate-50 hover:border-blue-500 hover:ring-2 hover:ring-blue-500 hover:ring-opacity-20 hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 active:shadow-sm transition-all duration-200 cursor-pointer text-left relative"
                     >
-                      {/* 우측 상단 ChevronRight 아이콘 */}
-                      <ChevronRight className="absolute top-2 right-2 w-4 h-4 text-gray-400" />
-                      
-                      <div className="flex items-center justify-between mb-2">
+                      {/* 헤더: Title (좌측)과 Arrow Icon (우측) 정렬 */}
+                      <div className="flex justify-between items-start w-full mb-3">
                         <div className="flex items-center gap-2">
                           <IconComponent className="w-4 h-4 text-slate-600" />
                           <span className="text-xs font-medium text-slate-500">
                             {metric.label}
                           </span>
                         </div>
+                        {/* 우측 상단 ChevronRight 아이콘 */}
+                        <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0 group-hover:text-blue-500 transition-colors" />
                       </div>
-                      <div className="mb-1">
-                        <span className={`text-lg font-bold ${metric.color || 'text-slate-900'}`}>
+                      {/* Value: 크고 진하게 */}
+                      <div className="mb-2">
+                        <span className="text-2xl font-extrabold text-slate-900">
                           {metric.value}
                         </span>
                       </div>
-                      {metric.comment && (
-                        <div className={`text-xs mt-1 ${metric.color || 'text-slate-500'}`}>
-                          {metric.comment}
-                        </div>
-                      )}
-                      <div className="text-xs text-slate-400 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        자세히 보기
+                      {/* Status Badge */}
+                      <div className="inline-flex">
+                        <span className={`px-2 py-0.5 rounded text-xs font-bold ${metric.status.badgeClass}`}>
+                          {metric.status.status}
+                        </span>
                       </div>
                     </button>
                   )
@@ -305,35 +332,48 @@ export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
               )}
             </div>
 
-            {/* 섹션 3: AI 3줄 요약 (말풍선 스타일) */}
+            {/* 섹션 3: AI 3줄 요약 (그라데이션 + 아이콘 스타일) */}
             {aiAnalysis && (
               <div>
                 <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-4">
                   AI 3줄 요약
                 </h3>
-                {/* 말풍선 스타일 카드 */}
-                <div className="relative bg-slate-50 rounded-2xl p-5 sm:p-6 border border-slate-200">
-                  {/* 말풍선 꼬리 */}
-                  <div className="absolute -top-2 left-8 w-4 h-4 bg-slate-50 border-l border-t border-slate-200 transform rotate-45"></div>
-
+                {/* 그라데이션 배경 카드 */}
+                <div className="relative bg-gradient-to-br from-indigo-50 to-white rounded-2xl p-5 sm:p-6 border border-indigo-100 shadow-sm">
                   {/* 핵심 한 줄 요약 */}
-                  <div className="mb-4 pb-4 border-b border-slate-200">
-                    <p className="text-sm sm:text-base text-slate-900 font-medium leading-relaxed">
+                  <div className="mb-5 pb-4 border-b border-indigo-200">
+                    <p className="text-sm sm:text-base text-slate-800 font-medium leading-relaxed">
                       {aiAnalysis.one_line}
                     </p>
                   </div>
 
-                  {/* 3줄 요약 리스트 */}
-                  <div className="space-y-2.5">
-                    {aiAnalysis.summary.slice(0, 3).map((point, index) => (
-                      <div
-                        key={index}
-                        className="flex items-start gap-2.5 text-sm sm:text-base text-slate-700 leading-relaxed"
-                      >
-                        <span className="text-red-500 mt-0.5 font-bold">•</span>
-                        <span>{point}</span>
-                      </div>
-                    ))}
+                  {/* 3줄 요약 리스트 (CheckCircle2 아이콘) */}
+                  <div className="space-y-3">
+                    {aiAnalysis.summary.slice(0, 3).map((point, index) => {
+                      // 핵심 키워드 하이라이트 함수
+                      const highlightKeywords = (text: string) => {
+                        const keywords = ['저평가', '고평가', '매수', '매도', '기회', '리스크', '위험', '우수', '개선', '적정', '높은', '낮은', '상승', '하락']
+                        let highlighted = text
+                        keywords.forEach(keyword => {
+                          const regex = new RegExp(`(${keyword})`, 'gi')
+                          highlighted = highlighted.replace(regex, '<strong class="font-bold text-slate-900">$1</strong>')
+                        })
+                        return highlighted
+                      }
+
+                      return (
+                        <div
+                          key={index}
+                          className="flex items-start gap-3 text-sm sm:text-base text-slate-700 leading-relaxed"
+                        >
+                          <CheckCircle2 className="w-5 h-5 text-indigo-600 flex-shrink-0 mt-0.5" />
+                          <span 
+                            className="font-medium text-slate-800"
+                            dangerouslySetInnerHTML={{ __html: highlightKeywords(point) }}
+                          />
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               </div>

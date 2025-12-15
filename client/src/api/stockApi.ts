@@ -2,7 +2,8 @@ import axios, { AxiosInstance, AxiosError } from 'axios'
 import type {
   StockAnalysisRequest,
   StockAnalysisResponse,
-  StockInfo
+  StockInfo,
+  UpdateLog,
 } from '../types/stock'
 
 /**
@@ -102,8 +103,8 @@ class StockApiClient {
         roe: response.data?.stock_data?.roe,
         roe_str: response.data?.stock_data?.roe_str,
         return_on_equity: response.data?.stock_data?.return_on_equity,
-        volatility: response.data?.stock_data?.volatility,
-        volatility_str: response.data?.stock_data?.volatility_str,
+        eps: response.data?.stock_data?.eps,
+        eps_str: response.data?.stock_data?.eps_str,
         beta: response.data?.stock_data?.beta,
       })
       return response.data
@@ -157,6 +158,25 @@ class StockApiClient {
       if (axios.isAxiosError(error)) {
         throw new Error(
           error.response?.data?.detail || '티커 검색 중 오류가 발생했습니다.'
+        )
+      }
+      throw error
+    }
+  }
+
+  /**
+   * 업데이트 로그 조회
+   * @returns 업데이트 로그 목록
+   */
+  async fetchUpdateLogs(): Promise<UpdateLog[]> {
+    try {
+      const response = await this.axiosInstance.get<UpdateLog[]>('/api/updates')
+      return response.data
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        throw new Error(
+          error.response?.data?.detail ||
+            '업데이트 로그를 가져오는 중 오류가 발생했습니다.'
         )
       }
       throw error

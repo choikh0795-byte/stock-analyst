@@ -16,7 +16,7 @@ export const AIAnalysis: React.FC<AIAnalysisProps> = ({ analysis }) => {
   return (
     <div className="ai-analysis">
       <h3>
-        🤖 AI 투자 점수: <span style={{ color: signalColor }}>{analysis.score}점</span>
+        🤖 AI 투자 점수: <span style={{ color: signalColor }}>{typeof analysis.score === 'number' ? analysis.score.toFixed(1) : analysis.score}점</span>
       </h3>
 
       <div className="progress-bar">

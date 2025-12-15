@@ -18,11 +18,11 @@ export interface StockInfo {
   currency?: string
   pe_ratio?: number | null
   pb_ratio?: number | null
-  // 백엔드 계산된 ROE/변동성 (신규)
+  // 백엔드 계산된 ROE/EPS (신규)
   roe?: number | null
   roe_str?: string | null
-  volatility?: number | null
-  volatility_str?: string | null
+  eps?: number | null
+  eps_str?: string | null
   // 구버전 호환 필드 (yfinance 원본)
   return_on_equity?: number | null
   sector: string
@@ -43,7 +43,7 @@ export interface StockInfo {
     roe?: string
     dividend_yield?: string
     beta?: string
-    volatility?: string
+    eps?: string
     target_mean_price?: string
   } | null
 }
@@ -75,4 +75,12 @@ export interface StockAnalysisResponse {
 }
 
 export type SignalType = '매수' | '중립' | '주의'
+
+export interface UpdateLog {
+  id: number
+  created_at: string
+  version: string | null
+  category: string
+  content: string
+}
 

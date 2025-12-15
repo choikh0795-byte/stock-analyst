@@ -102,6 +102,16 @@ async def analyze_stock(
         # 주식 정보 가져오기
         stock_data, news = stock_service.get_stock_info(ticker, db)
         
+        # market_cap 타입 검증 및 강제 변환 (스키마 호환성)
+        if 'market_cap' in stock_data and stock_data['market_cap'] is not None:
+            if not isinstance(stock_data['market_cap'], str):
+                try:
+                    stock_data['market_cap'] = str(int(float(stock_data['market_cap'])))
+                    logger.info(f"[Stocks Router] market_cap 타입 변환 완료: {stock_data['market_cap']}")
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"[Stocks Router] market_cap 변환 실패: {e}, None으로 설정")
+                    stock_data['market_cap'] = None
+        
         # AI 분석 수행
         ai_analysis = ai_service.analyze_stock(stock_data, news)
         

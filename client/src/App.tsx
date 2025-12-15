@@ -1,5 +1,6 @@
 import React from 'react'
 import { StockAnalysisPage } from './pages/StockAnalysisPage'
+import { UpdateLogModal } from './components/UpdateLogModal'
 import { useStockStore } from './store/useStockStore'
 import './App.css'
 
@@ -19,6 +20,7 @@ function App() {
       }`}
     >
       <StockAnalysisPage />
+      <UpdateLogModal />
     </div>
   )
 }

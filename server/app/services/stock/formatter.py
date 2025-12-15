@@ -37,8 +37,7 @@ class StockFormatter:
         except Exception:
             return "N/A"
 
-        if is_korean and value < 0.5:
-            value = value * 100
+        
 
         return f"{value:.2f}%"
 
@@ -55,12 +54,19 @@ class StockFormatter:
         return f"{roe}%"
 
     @staticmethod
-    def format_volatility(volatility: Optional[float], volatility_type: Optional[str]) -> str:
-        if volatility is None:
+    def format_eps(eps: Optional[float], is_korean: bool) -> str:
+        """
+        EPS 포맷팅
+        
+        - None이면 "N/A"
+        - 한국 주식: 소수점 버리고 천 단위 콤마 + "원" (예: 5,400원)
+        - 미국 주식: 소수점 2자리 + "$" (예: $5.40)
+        """
+        if eps is None:
             return "N/A"
-
-        if volatility_type == "beta":
-            return f"{volatility} (Beta)"
-
-        return f"{volatility}% (1년)"
+        
+        if is_korean:
+            return f"{int(eps):,}원"
+        
+        return f"${eps:.2f}"
 
