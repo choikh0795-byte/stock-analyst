@@ -6,6 +6,7 @@ from typing import Dict, Optional
 import FinanceDataReader as fdr
 import pandas as pd
 import yfinance as yf
+import requests  # [필수 추가] requests 모듈 임포트
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,7 @@ class StockProvider:
 
     @classmethod
     def _load_ticker_cache(cls) -> None:
+        # ... (기존 코드와 동일) ...
         if cls._is_cache_loaded:
             return
         try:
@@ -76,6 +78,7 @@ class StockProvider:
 
     @classmethod
     def _save_debug_file(cls) -> None:
+        # ... (기존 코드와 동일) ...
         try:
             debug_data = {
                 "ticker_map_sample": dict(list(cls._ticker_cache.items())[:5]),
@@ -93,6 +96,7 @@ class StockProvider:
         return bool(ticker_pattern.match(query.upper().strip()))
 
     def search_ticker(self, query: str) -> str:
+        # ... (기존 코드와 동일) ...
         query = query.strip().upper()
         if not query:
             raise ValueError("검색어를 입력해주세요.")
@@ -108,6 +112,7 @@ class StockProvider:
         return self._search_with_yfinance(query)
 
     def _search_with_yfinance(self, query: str) -> str:
+        # ... (기존 코드와 동일) ...
         try:
             from yfinance import Search
 
@@ -118,18 +123,86 @@ class StockProvider:
         except Exception as e:
             raise ValueError(f"검색 실패: {e}")
 
+    # ================= [핵심 수정 부분] =================
     def get_stock(self, ticker: str):
-        return yf.Ticker(ticker)
+        """
+        yfinance Ticker 객체를 생성합니다.
+        Render 등 서버 환경에서의 차단을 막기 위해 User-Agent가 포함된 Session을 주입합니다.
+        """
+        try:
+            session = requests.Session()
+            # 브라우저인 척 위장하는 헤더 설정
+            session.headers.update({
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            })
+            return yf.Ticker(ticker, session=session)
+        except Exception as e:
+            logger.error(f"[StockProvider] Ticker 생성 중 오류: {e}")
+            # fallback: 세션 없이 시도
+            return yf.Ticker(ticker)
 
     def get_info(self, stock) -> Dict:
+        """
+        stock.info 데이터를 가져오되, 실패하거나 비어있을 경우 fast_info로 보완합니다.
+        """
         info = {}
+        
+        # 1. 기본 info 가져오기 시도 (느리거나 차단될 수 있음)
         try:
             info = stock.info
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[StockProvider] info fetch warning (1차 시도): {e}")
+        
+        # info가 None이거나 비어있을 경우 딕셔너리 초기화
+        if info is None:
+            info = {}
+
+        # 2. fast_info를 사용하여 핵심 데이터 강제 주입 (방어 로직)
+        # fast_info는 Yahoo Finance API를 직접 찌르므로 차단 확률이 낮고 속도가 빠름
+        try:
+            fast_info = stock.fast_info
+            
+            # (1) 시가총액 (Market Cap)
+            if 'marketCap' not in info or not info['marketCap']:
+                val = fast_info.market_cap
+                if val:
+                    info['marketCap'] = val
+                    logger.info(f"[StockProvider] fast_info로 marketCap 복구: {val}")
+
+            # (2) 현재가 (Current Price)
+            # last_price가 가장 최신 가격임
+            if 'currentPrice' not in info or not info['currentPrice']:
+                val = fast_info.last_price
+                if val:
+                    info['currentPrice'] = val
+                    info['regularMarketPrice'] = val # 호환성을 위해 추가
+                    logger.info(f"[StockProvider] fast_info로 currentPrice 복구: {val}")
+
+            # (3) 전일 종가 (Previous Close)
+            if 'previousClose' not in info or not info['previousClose']:
+                val = fast_info.previous_close
+                if val:
+                    info['previousClose'] = val
+
+            # (4) 52주 최고/최저
+            if 'fiftyTwoWeekHigh' not in info or not info['fiftyTwoWeekHigh']:
+                val = fast_info.year_high
+                if val:
+                    info['fiftyTwoWeekHigh'] = val
+            
+            if 'fiftyTwoWeekLow' not in info or not info['fiftyTwoWeekLow']:
+                val = fast_info.year_low
+                if val:
+                    info['fiftyTwoWeekLow'] = val
+
+        except Exception as e:
+            logger.warning(f"[StockProvider] fast_info fetch failed (2차 방어 실패): {e}")
+
         return info
+    # ====================================================
 
     def get_news_titles(self, stock) -> list:
+        # ... (기존 코드와 동일) ...
         titles = []
         try:
             news = stock.news
@@ -146,4 +219,3 @@ class StockProvider:
 
     def get_korean_name(self, ticker: str) -> Optional[str]:
         return self._ticker_to_name_cache.get(ticker)
-

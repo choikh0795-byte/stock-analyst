@@ -150,7 +150,7 @@ async def analyze_stock_ai_only(
         
     Returns:
         AIAnalysisResponse: AI 분석 결과만
-    """
+    """  
     try:
         ticker = request.ticker.upper()
         
