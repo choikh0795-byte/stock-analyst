@@ -161,6 +161,55 @@ class StockCalculator:
 
         return pb_ratio
 
+    def calculate_pb_ratio_without_stock(
+        self,
+        info: Dict,
+        current_price: float,
+        fdr_data: Dict,
+        market_cap: Optional[float],
+    ) -> Optional[float]:
+        """
+        stock 객체 없이 PBR을 계산합니다.
+        balance_sheet 조회 단계는 건너뜁니다.
+        """
+        pb_ratio = info.get("priceToBook")
+
+        if not pb_ratio:
+            try:
+                book_value = info.get("bookValue")
+                logger.info(f"[DEBUG] PBR 계산 시도: 현재가={current_price}, BPS={book_value}")
+                if current_price > 0 and book_value and book_value > 0:
+                    pb_ratio = round(current_price / book_value, 2)
+                    logger.info(f"[DEBUG] PBR 계산 결과: {pb_ratio}")
+                else:
+                    logger.warning(
+                        f"[DEBUG] PBR 계산 불가: 현재가={current_price}, BPS={book_value} (0 이하 값 또는 None)"
+                    )
+            except Exception as e:
+                logger.warning(f"[DEBUG] PBR 계산 실패: {str(e)}")
+
+        if not pb_ratio:
+            try:
+                total_equity = self._calculate_total_equity_from_info(info)
+                logger.info(f"[DEBUG] PBR 3차 계산 시도: 시가총액={market_cap}, 자본총계={total_equity}")
+                if market_cap and market_cap > 0 and total_equity and total_equity > 0:
+                    pb_ratio = round(market_cap / total_equity, 2)
+                    logger.info(f"[Calculation] PBR 2차 계산 성공(시총/자본): {pb_ratio}")
+                else:
+                    logger.warning(
+                        f"[DEBUG] PBR 3차 계산 불가: 시가총액={market_cap}, 자본총계={total_equity} (0 이하 값 또는 None)"
+                    )
+            except Exception as e:
+                logger.warning(f"[DEBUG] PBR 3차 계산 실패: {str(e)}")
+
+        # stock 객체가 없으므로 balance_sheet 조회 단계는 건너뜀
+
+        if not pb_ratio:
+            pb_ratio = fdr_data.get("pbr", 0.0)
+            logger.info(f"[DEBUG] PBR FDR 캐시 사용: {pb_ratio}")
+
+        return pb_ratio
+
     def calculate_dividend_yield(self, info: Dict, fdr_data: Dict, is_korean: bool) -> float:
         # is_korean is kept for interface compatibility
         _ = is_korean
@@ -308,6 +357,46 @@ class StockCalculator:
 
             except Exception as e:
                 logger.warning(f"[Calculation] ROE 3차 계산 실패: {str(e)}")
+
+        return roe
+
+    def calculate_roe_without_stock(self, info: Dict) -> Optional[float]:
+        """
+        stock 객체 없이 ROE를 계산합니다.
+        balance_sheet와 income_stmt 조회 단계는 건너뜁니다.
+        """
+        return_on_equity = info.get("returnOnEquity")
+        roe = None
+        if return_on_equity is not None:
+            roe = round(return_on_equity * 100, 2)
+            logger.info(f"[Calculation] ROE 1차 성공 (info.returnOnEquity): {roe}")
+
+        if not roe:
+            try:
+                net_income = info.get("netIncomeToCommon", 0)
+                total_equity = info.get("totalStockholderEquity") or info.get("totalEquity", 0)
+
+                if not total_equity or total_equity == 0:
+                    total_assets = info.get("totalAssets", 0)
+                    total_liabilities = info.get("totalLiabilities", 0)
+                    if total_assets > 0 and total_liabilities >= 0:
+                        total_equity = total_assets - total_liabilities
+                        logger.info(
+                            f"[Calculation] ROE 2차 계산: 자본총계 계산 (자산={total_assets}, 부채={total_liabilities}, 자본={total_equity})"
+                        )
+
+                logger.info(f"[Calculation] ROE 2차 계산 시도: 순이익={net_income}, 자본총계={total_equity}")
+                if net_income and net_income > 0 and total_equity and total_equity > 0:
+                    roe = round((net_income / total_equity) * 100, 2)
+                    logger.info(f"[Calculation] ROE 2차 계산 성공(순이익/자본): {roe}%")
+                else:
+                    logger.warning(
+                        f"[Calculation] ROE 2차 계산 불가: 순이익={net_income}, 자본총계={total_equity} (0 이하 값 또는 None)"
+                    )
+            except Exception as e:
+                logger.warning(f"[Calculation] ROE 2차 계산 실패: {str(e)}")
+
+        # stock 객체가 없으므로 balance_sheet와 income_stmt 조회 단계는 건너뜀
 
         return roe
 

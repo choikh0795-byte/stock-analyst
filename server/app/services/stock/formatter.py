@@ -1,8 +1,9 @@
-from typing import Optional
+from typing import Optional, Literal
+from datetime import datetime
 
 
 class StockFormatter:
-    """Formatting helpers to convert numeric values into display-friendly strings."""
+    """Formatting helpers to convert numeric values into display-ready strings."""
 
     @staticmethod
     def format_currency(value: Optional[float], is_korean: bool) -> str:
@@ -37,8 +38,6 @@ class StockFormatter:
         except Exception:
             return "N/A"
 
-        
-
         return f"{value:.2f}%"
 
     @staticmethod
@@ -51,7 +50,7 @@ class StockFormatter:
     def format_roe(roe: Optional[float]) -> str:
         if roe is None:
             return "N/A"
-        return f"{roe}%"
+        return f"{roe:.1f}%"
 
     @staticmethod
     def format_eps(eps: Optional[float], is_korean: bool) -> str:
@@ -69,4 +68,143 @@ class StockFormatter:
             return f"{int(eps):,}원"
         
         return f"${eps:.2f}"
+
+    @staticmethod
+    def format_pe_ratio(pe_ratio: Optional[float], is_korean: bool) -> str:
+        """
+        PER 포맷팅
+        
+        - None이면 "N/A"
+        - 한국 주식: 소수점 1자리 + "배" (예: 12.5배)
+        - 미국 주식: 소수점 1자리 + "배" (예: 12.5배)
+        """
+        if pe_ratio is None:
+            return "N/A"
+        return f"{pe_ratio:.1f}배"
+
+    @staticmethod
+    def format_pb_ratio(pb_ratio: Optional[float], is_korean: bool) -> str:
+        """
+        PBR 포맷팅
+        
+        - None이면 "N/A"
+        - 소수점 1자리 + "배" (예: 1.5배)
+        """
+        if pb_ratio is None:
+            return "N/A"
+        return f"{pb_ratio:.1f}배"
+
+    @staticmethod
+    def format_beta(beta: Optional[float]) -> str:
+        """
+        Beta 포맷팅
+        
+        - None이면 "N/A"
+        - 소수점 2자리 (예: 1.25)
+        """
+        if beta is None:
+            return "N/A"
+        return f"{beta:.2f}"
+
+    @staticmethod
+    def format_percentage(value: Optional[float], decimals: int = 2) -> str:
+        """
+        퍼센트 포맷팅
+        
+        - None이면 "N/A"
+        - 소수점 지정 가능 (기본 2자리)
+        - "+" 기호는 포함하지 않음 (부호는 별도 필드로 처리)
+        """
+        if value is None:
+            return "N/A"
+        return f"{value:.{decimals}f}%"
+
+    @staticmethod
+    def format_change_percentage(value: Optional[float], decimals: int = 2) -> str:
+        """
+        등락률 포맷팅 (부호 포함)
+        
+        - None이면 "N/A"
+        - 양수면 "+" 기호 포함 (예: +2.50%)
+        - 음수면 "-" 기호 포함 (예: -1.25%)
+        """
+        if value is None:
+            return "N/A"
+        sign = "+" if value >= 0 else ""
+        return f"{sign}{value:.{decimals}f}%"
+
+    @staticmethod
+    def format_change_value(value: Optional[float], is_korean: bool) -> str:
+        """
+        등락액 포맷팅
+        
+        - None이면 "N/A"
+        - 한국: 정수 처리 + 3자리 쉼표 + '원' (예: +1,200원)
+        - 미국: 달러 기호 + 소수점 2자리 + 3자리 쉼표 (예: +$1.25)
+        """
+        if value is None:
+            return "N/A"
+        
+        sign = "+" if value >= 0 else ""
+        
+        if is_korean:
+            return f"{sign}{int(value):,}원"
+        
+        return f"{sign}${value:,.2f}"
+
+    @staticmethod
+    def format_target_upside(upside: Optional[float]) -> str:
+        """
+        목표가 괴리율 포맷팅
+        
+        - None이면 "N/A"
+        - 양수면 "+" 기호 포함 (예: +15.5%)
+        - 음수면 "-" 기호 포함 (예: -5.2%)
+        """
+        if upside is None:
+            return "N/A"
+        sign = "+" if upside >= 0 else ""
+        return f"{sign}{upside:.1f}%"
+
+    @staticmethod
+    def format_date(date_str: Optional[str], format_type: Literal["short", "long"] = "short") -> str:
+        """
+        날짜 포맷팅
+        
+        - None이면 "N/A"
+        - short: "2024-01-15"
+        - long: "2024년 1월 15일"
+        """
+        if not date_str:
+            return "N/A"
+        
+        try:
+            # ISO 형식 또는 일반 날짜 형식 파싱 시도
+            if "T" in date_str:
+                dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+            else:
+                dt = datetime.strptime(date_str, "%Y-%m-%d")
+            
+            if format_type == "long":
+                return dt.strftime("%Y년 %m월 %d일")
+            else:
+                return dt.strftime("%Y-%m-%d")
+        except Exception:
+            return date_str  # 파싱 실패 시 원본 반환
+
+    @staticmethod
+    def get_change_status(current_price: float, previous_close: float) -> Literal["RISING", "FALLING", "NEUTRAL"]:
+        """
+        가격 변동 상태 판단
+        
+        - RISING: 상승 (current_price > previous_close)
+        - FALLING: 하락 (current_price < previous_close)
+        - NEUTRAL: 동일 (current_price == previous_close)
+        """
+        if current_price > previous_close:
+            return "RISING"
+        elif current_price < previous_close:
+            return "FALLING"
+        else:
+            return "NEUTRAL"
 

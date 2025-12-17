@@ -15,6 +15,19 @@ export interface StockInfo {
   target_mean_price_str?: string | null
   market_cap: string | null
   market_cap_str?: string
+  // 포맷팅된 지표 문자열
+  pe_ratio_str?: string | null
+  pb_ratio_str?: string | null
+  beta_str?: string | null
+  // 가격 변동 관련 (계산 및 포맷팅)
+  change_value?: number | null
+  change_value_str?: string | null
+  change_percentage?: number | null
+  change_percentage_str?: string | null
+  change_status?: 'RISING' | 'FALLING' | 'NEUTRAL' | null
+  // 목표가 괴리율
+  target_upside?: number | null
+  target_upside_str?: string | null
   currency?: string
   pe_ratio?: number | null
   pb_ratio?: number | null

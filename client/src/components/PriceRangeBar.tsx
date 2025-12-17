@@ -23,19 +23,13 @@ export const PriceRangeBar: React.FC<PriceRangeBarProps> = ({
   low_str,
   high_str,
 }) => {
-  const isKorean = currency === 'KRW'
-  
   const formatPrice = (price: number, formattedStr?: string | null): string => {
     // 백엔드에서 포맷팅된 문자열이 있으면 우선 사용
     if (formattedStr) {
       return formattedStr
     }
-    // 없으면 기존 로직 사용 (fallback)
-    if (isKorean) {
-      return `${Math.floor(price).toLocaleString()}`
-    } else {
-      return `$${price.toFixed(2)}`
-    }
+    // Fallback: 기본 포맷팅 (백엔드에서 제공하지 않은 경우에만)
+    return String(price)
   }
   // 데이터가 없으면 표시하지 않음
   if (!low || !high || low >= high) {
@@ -152,7 +146,7 @@ export const PriceRangeBar: React.FC<PriceRangeBarProps> = ({
           <span className="text-xs sm:text-sm text-slate-600">
             현재가가 52주 범위의{' '} 
             <span className="font-semibold text-slate-900">
-              {position.toFixed(1)}%
+              {position >= 0 && position <= 100 ? position.toFixed(1) : '0.0'}%
             </span>
              위치에 있습니다
           </span>

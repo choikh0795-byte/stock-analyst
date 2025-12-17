@@ -12,6 +12,10 @@ build/
 .env
 .env.local
 
+# Token files (KIS API Access Token)
+token.json
+server/token.json
+
 # IDE
 .vscode/
 .idea/

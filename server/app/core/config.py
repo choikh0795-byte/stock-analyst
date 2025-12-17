@@ -38,6 +38,13 @@ class Settings(BaseSettings):
     
     # 데이터베이스 설정
     DATABASE_URL: str = ""
+
+    # KIS API 설정
+    KIS_APP_KEY: str
+    KIS_APP_SECRET: str
+    KIS_BASE_URL: str = "https://openapi.koreainvestment.com:9443"
+    KIS_CANO: str | None = None  # 계좌번호 앞 8자리, Optional
+    KIS_ACNT_PRDT_CD: str | None = None  # 계좌번호 뒤 2자리, Optional
     
     class Config:
         env_file = ".env"

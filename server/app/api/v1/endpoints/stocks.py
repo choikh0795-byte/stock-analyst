@@ -39,11 +39,20 @@ async def search_ticker(
         ticker = stock_service.search_ticker(request.query)
         return TickerSearchResponse(ticker=ticker)
     except ValueError as e:
-        logger.error(f"[Stocks Router] Ticker search error: {e}")
-        raise HTTPException(status_code=404, detail=str(e))
+        error_message = str(e)
+        logger.warning(f"[Stocks Router] Ticker search failed for '{request.query}': {error_message}")
+        # 검색 실패는 404가 아니라 400 (Bad Request) 또는 422 (Unprocessable Entity)가 더 적절
+        # 하지만 클라이언트 호환성을 위해 404 유지하되, 더 명확한 메시지 제공
+        raise HTTPException(
+            status_code=404, 
+            detail=f"'{request.query}'에 대한 종목을 찾을 수 없습니다. 티커 심볼(예: 005930.KS, AAPL)을 직접 입력해주세요."
+        )
     except Exception as e:
-        logger.error(f"[Stocks Router] Unexpected error: {e}")
-        raise HTTPException(status_code=500, detail=f"서버 오류가 발생했습니다: {str(e)}")
+        logger.error(f"[Stocks Router] Unexpected error during ticker search: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, 
+            detail=f"종목 검색 중 서버 오류가 발생했습니다: {str(e)}"
+        )
 
 
 @router.get("/{ticker}")

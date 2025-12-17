@@ -80,48 +80,24 @@ export const MetricModal: React.FC<MetricModalProps> = ({
 
   const dividendYieldNormalized = normalizeDividendYield()
 
-  // 지표 값 가져오기
+  // 지표 값 가져오기 (백엔드에서 포맷팅된 문자열 우선 사용)
   const getMetricValue = (): string => {
     switch (metricKey) {
       case 'pe_ratio':
-        return stockData.pe_ratio !== null && stockData.pe_ratio !== undefined
-          ? `${stockData.pe_ratio.toFixed(1)}배`
-          : 'N/A'
+        return stockData.pe_ratio_str || 'N/A'
       case 'pb_ratio':
-        return stockData.pb_ratio !== null && stockData.pb_ratio !== undefined
-          ? `${stockData.pb_ratio.toFixed(1)}배`
-          : 'N/A'
+        return stockData.pb_ratio_str || 'N/A'
       case 'roe':
-      case 'return_on_equity': {
-        // roe: 백엔드 계산(%) 우선, 없으면 구버전 소수값 사용
-        const roePercent = stockData.roe ?? (stockData.return_on_equity !== undefined && stockData.return_on_equity !== null
-          ? stockData.return_on_equity * 100
-          : null)
-        if (roePercent !== null && roePercent !== undefined) {
-          return `${roePercent.toFixed(1)}%`
-        }
+      case 'return_on_equity':
         return stockData.roe_str || 'N/A'
-      }
       case 'dividend_yield':
-        return dividendYieldNormalized.percent !== null && dividendYieldNormalized.percent !== undefined
-          ? `${dividendYieldNormalized.percent.toFixed(2)}%`
-          : 'N/A'
+        return stockData.dividend_yield_str || 'N/A'
       case 'beta':
-        return stockData.beta !== null && stockData.beta !== undefined
-          ? stockData.beta.toFixed(2)
-          : 'N/A'
+        return stockData.beta_str || 'N/A'
       case 'eps':
-        return stockData.eps_str || (stockData.eps !== null && stockData.eps !== undefined
-          ? (stockData.currency === 'KRW' 
-            ? `${Math.floor(stockData.eps).toLocaleString()}원`
-            : `$${stockData.eps.toFixed(2)}`)
-          : 'N/A')
+        return stockData.eps_str || 'N/A'
       case 'target_mean_price':
-        if (stockData.target_mean_price && stockData.current_price) {
-          const upside = ((stockData.target_mean_price - stockData.current_price) / stockData.current_price) * 100
-          return `${upside > 0 ? '+' : ''}${upside.toFixed(1)}%`
-        }
-        return 'N/A'
+        return stockData.target_upside_str || 'N/A'
       default:
         return 'N/A'
     }
@@ -316,8 +292,8 @@ export const MetricModal: React.FC<MetricModalProps> = ({
         break
       }
       case 'target_mean_price':
-        if (stockData.target_mean_price && stockData.current_price) {
-          const upside = ((stockData.target_mean_price - stockData.current_price) / stockData.current_price) * 100
+        if (stockData.target_upside !== null && stockData.target_upside !== undefined) {
+          const upside = stockData.target_upside
           if (upside > 10) {
             return {
               status: '상승 여력 큼',
@@ -440,8 +416,8 @@ export const MetricModal: React.FC<MetricModalProps> = ({
         return { percentage, isGood, isNeutral, value: divRatio }
       }
       case 'target_mean_price': {
-        if (stockData.target_mean_price && stockData.current_price) {
-          const upside = ((stockData.target_mean_price - stockData.current_price) / stockData.current_price) * 100
+        if (stockData.target_upside !== null && stockData.target_upside !== undefined) {
+          const upside = stockData.target_upside
           // -20~50% 범위를 기준으로 (10~50: 좋음, 0~10: 적정, -20~0: 나쁨)
           const normalized = (upside + 20) / 70 // -20을 0으로, 50을 100%로 정규화
           const percentage = Math.max(0, Math.min(normalized * 100, 100))

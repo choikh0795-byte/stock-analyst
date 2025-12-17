@@ -1,6 +1,5 @@
 import React from 'react'
 import type { StockInfo } from '../types/stock'
-import { calculatePriceChange } from '../utils/stockUtils'
 import './StockInfo.css'
 
 interface StockInfoProps {
@@ -11,8 +10,7 @@ interface StockInfoProps {
  * 주식 기본 정보 표시 컴포넌트
  */
 export const StockInfo: React.FC<StockInfoProps> = ({ data }) => {
-  const priceChange = calculatePriceChange(data.current_price, data.previous_close)
-  const isPositive = priceChange.value >= 0
+  const isPositive = data.change_status === 'RISING'
 
   return (
     <div className="stock-info">
@@ -24,13 +22,10 @@ export const StockInfo: React.FC<StockInfoProps> = ({ data }) => {
         <div className="metric-card">
           <div className="metric-label">현재가</div>
           <div className="metric-value">
-            {data.current_price_str || (data.currency === 'KRW' 
-              ? `${Math.floor(data.current_price).toLocaleString()}원` 
-              : `$${data.current_price.toFixed(2)}`)}
-            {data.current_price !== data.previous_close && (
+            {data.current_price_str || '-'}
+            {data.change_value !== null && data.change_value !== undefined && data.change_value !== 0 && (
               <span className={`delta ${isPositive ? 'positive' : 'negative'}`}>
-                {isPositive ? '+' : ''}
-                {priceChange.value.toFixed(2)} ({priceChange.percentage.toFixed(2)}%)
+                {data.change_value_str || '-'} ({data.change_percentage_str || '-'})
               </span>
             )}
           </div>
@@ -38,7 +33,7 @@ export const StockInfo: React.FC<StockInfoProps> = ({ data }) => {
 
         <div className="metric-card">
           <div className="metric-label">PER</div>
-          <div className="metric-value">{data.pe_ratio || 'N/A'}</div>
+          <div className="metric-value">{data.pe_ratio_str || 'N/A'}</div>
         </div>
 
         <div className="metric-card">

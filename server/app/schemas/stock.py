@@ -38,6 +38,19 @@ class StockInfo(BaseModel):
     fifty_two_week_high_str: Optional[str] = None
     target_mean_price_str: Optional[str] = None
     market_cap_str: Optional[str] = None
+    # 포맷팅된 지표 문자열
+    pe_ratio_str: Optional[str] = None
+    pb_ratio_str: Optional[str] = None
+    beta_str: Optional[str] = None
+    # 가격 변동 관련 (계산 및 포맷팅)
+    change_value: Optional[float] = None
+    change_value_str: Optional[str] = None
+    change_percentage: Optional[float] = None
+    change_percentage_str: Optional[str] = None
+    change_status: Optional[str] = None  # "RISING", "FALLING", "NEUTRAL"
+    # 목표가 괴리율
+    target_upside: Optional[float] = None
+    target_upside_str: Optional[str] = None
     currency: Optional[str] = None
 
     class Config:

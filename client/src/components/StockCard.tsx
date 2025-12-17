@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
 import type { StockInfo, AIAnalysis } from '../types/stock'
-import { calculatePriceChange, getSignalColor } from '../utils/stockUtils'
+import { getSignalColor } from '../utils/stockUtils'
 import { PriceRangeBar } from './PriceRangeBar'
 import { MetricModal } from './MetricModal'
 import { Tag, Building2, TrendingUp, Coins, DollarSign, Target, ChevronRight, CheckCircle2 } from 'lucide-react'
@@ -16,19 +16,13 @@ interface StockCardProps {
 export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
   const [isExpanded, setIsExpanded] = useState(false)
   const [selectedMetric, setSelectedMetric] = useState<string | null>(null)
-  const priceChange = calculatePriceChange(data.current_price, data.previous_close)
-  const isPositive = priceChange.value >= 0
+  // 백엔드에서 계산된 change_status 사용
+  const isPositive = data.change_status === 'RISING'
 
   // AI 점수 뱃지 색상
   const signalColor = aiAnalysis ? getSignalColor(aiAnalysis.signal) : '#3b82f6'
 
-  // 목표가 괴리율 계산 ((목표가 - 현재가) / 현재가 * 100)
-  const targetUpside =
-    data.target_mean_price && data.current_price
-      ? ((data.target_mean_price - data.current_price) / data.current_price) * 100
-      : null
-
-  // 숫자 변환 헬퍼 함수
+  // 숫자 변환 헬퍼 함수 (UI 로직 판단용)
   const toNumber = (value: any): number | null => {
     if (value === null || value === undefined) return null
     if (typeof value === 'number') return value
@@ -39,44 +33,23 @@ export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
     return null
   }
 
-  // 지표 값 변환
+  // 지표 값 변환 (UI 로직 판단용)
   const peRatio = toNumber(data.pe_ratio)
   const pbRatio = toNumber(data.pb_ratio)
   // ROE: 백엔드 계산(%) 우선, 없으면 과거 필드(return_on_equity: 소수) 사용
   const roePercent = toNumber(data.roe) ?? (toNumber(data.return_on_equity) !== null
     ? (toNumber(data.return_on_equity) as number) * 100
     : null)
-  const isKoreanStock = data.currency === 'KRW'
   const dividendYieldRaw = toNumber(data.dividend_yield)
-  const dividendYieldPct = dividendYieldRaw 
   const epsValue = toNumber(data.eps)
-  const epsLabel = data.eps_str ?? (epsValue !== null ? (isKoreanStock ? `${Math.floor(epsValue).toLocaleString()}원` : `$${epsValue.toFixed(2)}`) : 'N/A')
+  
+  // 백엔드에서 포맷팅된 문자열 사용 (우선순위)
+  const peRatioStr = data.pe_ratio_str ?? (peRatio !== null ? `${peRatio.toFixed(1)}배` : 'N/A')
+  const pbRatioStr = data.pb_ratio_str ?? (pbRatio !== null ? `${pbRatio.toFixed(1)}배` : 'N/A')
   const roeLabel = data.roe_str ?? (roePercent !== null ? `${roePercent.toFixed(1)}%` : 'N/A')
-
-  // 디버그 로그: 렌더 직전 값 확인
-  useEffect(() => {
-    console.info('[StockCard][render] metrics', {
-      symbol: data.symbol,
-      roe: data.roe,
-      roe_str: data.roe_str,
-      roePercent,
-      return_on_equity: data.return_on_equity,
-      eps: data.eps,
-      eps_str: data.eps_str,
-      epsValue,
-      epsLabel,
-    })
-  }, [
-    data.symbol,
-    data.roe,
-    data.roe_str,
-    data.return_on_equity,
-    data.eps,
-    data.eps_str,
-    roePercent,
-    epsValue,
-    epsLabel,
-  ])
+  const dividendYieldStr = data.dividend_yield_str ?? (dividendYieldRaw !== null ? `${dividendYieldRaw.toFixed(2)}%` : 'N/A')
+  const epsLabel = data.eps_str ?? (epsValue !== null ? 'N/A' : 'N/A')
+  const targetUpsideStr = data.target_upside_str ?? 'N/A'
 
   // 지표 상태 판단 함수
   const getMetricStatus = (key: string, value: number | null): { status: string; badgeClass: string } => {
@@ -121,9 +94,7 @@ export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
     {
       key: 'pe_ratio',
       label: 'PER',
-      value: peRatio !== null 
-        ? `${peRatio.toFixed(1)}배` 
-        : 'N/A',
+      value: peRatioStr,
       numericValue: peRatio,
       status: getMetricStatus('pe_ratio', peRatio),
       Icon: Tag,
@@ -132,9 +103,7 @@ export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
     {
       key: 'pb_ratio',
       label: 'PBR',
-      value: pbRatio !== null 
-        ? `${pbRatio.toFixed(1)}배` 
-        : 'N/A',
+      value: pbRatioStr,
       numericValue: pbRatio,
       status: getMetricStatus('pb_ratio', pbRatio),
       Icon: Building2,
@@ -152,9 +121,7 @@ export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
     {
       key: 'dividend_yield',
       label: '배당수익률',
-      value: dividendYieldPct !== null 
-        ? `${dividendYieldPct.toFixed(2)}%` 
-        : 'N/A',
+      value: dividendYieldStr,
       numericValue: dividendYieldRaw,
       status: getMetricStatus('dividend_yield', dividendYieldRaw),
       Icon: Coins,
@@ -172,11 +139,9 @@ export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
     {
       key: 'target_mean_price',
       label: '목표가',
-      value: targetUpside !== null 
-        ? `${targetUpside > 0 ? '+' : ''}${targetUpside.toFixed(1)}%` 
-        : 'N/A',
-      numericValue: targetUpside,
-      status: getMetricStatus('target_mean_price', targetUpside),
+      value: targetUpsideStr,
+      numericValue: data.target_upside,
+      status: getMetricStatus('target_mean_price', data.target_upside),
       Icon: Target,
     },
   ]
@@ -207,18 +172,14 @@ export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
               {/* 가격 및 등락률 */}
               <div className="flex flex-col items-end justify-center flex-shrink-0">
                 <div className="text-xl sm:text-2xl font-bold text-slate-900 mb-1 whitespace-nowrap">
-                  {data.current_price_str || 
-                    (data.currency === 'KRW' 
-                      ? `${Math.floor(data.current_price).toLocaleString()}원`
-                      : `$${data.current_price.toFixed(2)}`)}
+                  {data.current_price_str || '-'}
                 </div>
                 <div
                   className={`text-sm sm:text-base font-semibold whitespace-nowrap ${
                     isPositive ? 'text-red-500' : 'text-blue-500'
                   }`}
                 >
-                  {isPositive ? '+' : ''}
-                  {priceChange.percentage.toFixed(2)}%
+                  {data.change_percentage_str || '-'}
                 </div>
               </div>
 
@@ -228,7 +189,7 @@ export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
                   className="px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-white font-bold text-xs sm:text-sm shadow-sm whitespace-nowrap"
                   style={{ backgroundColor: signalColor }}
                 >
-                  {typeof aiAnalysis.score === 'number' ? aiAnalysis.score.toFixed(1) : aiAnalysis.score}점
+                  {typeof aiAnalysis.score === 'number' ? aiAnalysis.score.toFixed(1) : String(aiAnalysis.score)}점
                 </div>
               )}
               
