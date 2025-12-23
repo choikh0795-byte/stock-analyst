@@ -97,3 +97,7 @@ if __name__ == "__main__":
         port=settings.PORT,
         reload=True
     )
+
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}    
