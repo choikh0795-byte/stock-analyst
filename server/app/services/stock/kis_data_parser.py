@@ -150,10 +150,10 @@ class KisDataParser:
         else:
             price_info["current_price"] = None
 
-        # 전일 종가
-        if "prdy_clpr" in kis_data:
+        # 전일 종가 (KIS API: stck_sdpr = Standard Price)
+        if "stck_sdpr" in kis_data:
             try:
-                price_info["previous_close"] = float(kis_data["prdy_clpr"])
+                price_info["previous_close"] = float(kis_data["stck_sdpr"])
             except (ValueError, TypeError):
                 price_info["previous_close"] = None
         else:
@@ -228,16 +228,6 @@ class KisDataParser:
         else:
             fundamental_info["eps"] = None
 
-        # 배당수익률 (1차 추출)
-        if "dvyd" in kis_data:
-            try:
-                div_yield = float(kis_data["dvyd"])
-                fundamental_info["dividend_yield"] = div_yield if div_yield != 0 else None
-            except (ValueError, TypeError):
-                fundamental_info["dividend_yield"] = None
-        else:
-            fundamental_info["dividend_yield"] = None
-
         return fundamental_info
 
     @staticmethod
@@ -246,7 +236,6 @@ class KisDataParser:
         stock_code: str,
         ticker: str,
         roe: Optional[float] = None,
-        dividend_yield: Optional[float] = None,
         target_mean_price: Optional[float] = None
     ) -> Dict:
         """
@@ -257,7 +246,6 @@ class KisDataParser:
             stock_code: 종목코드
             ticker: 원본 티커 심볼
             roe: ROE (방어 로직을 통해 계산된 값)
-            dividend_yield: 배당수익률 (방어 로직을 통해 계산된 값)
             target_mean_price: 목표가 (방어 로직을 통해 계산된 값)
 
         Returns:
@@ -278,9 +266,6 @@ class KisDataParser:
         # 섹터/업종 정보 추출
         sector, industry = KisDataParser.extract_sector_info(kis_data, stock_code)
 
-        # 방어 로직에서 계산된 값이 있으면 사용, 없으면 1차 파싱 값 사용
-        final_dividend_yield = dividend_yield if dividend_yield is not None else fundamental_info["dividend_yield"]
-
         return {
             "name": name,
             "korean_name": korean_name,  # 한글종목명 추가
@@ -291,7 +276,6 @@ class KisDataParser:
             "pe_ratio": fundamental_info["pe_ratio"],
             "pb_ratio": fundamental_info["pb_ratio"],
             "eps": fundamental_info["eps"],
-            "dividend_yield": final_dividend_yield,
             "roe": roe,  # 방어 로직으로 채워짐
             "fifty_two_week_low": price_info["fifty_two_week_low"],
             "fifty_two_week_high": price_info["fifty_two_week_high"],
