@@ -56,29 +56,13 @@ export const MetricModal: React.FC<MetricModalProps> = ({
     pb_ratio: Building2,
     roe: TrendingUp,
     return_on_equity: TrendingUp,
-    dividend_yield: Coins,
+    debt_ratio: Coins,
     beta: DollarSign,
     eps: DollarSign,
     target_mean_price: Target,
   }
 
   const IconComponent = iconMap[metricKey] || Tag
-
-  const normalizeDividendYield = () => {
-    const raw = stockData.dividend_yield
-    if (raw === null || raw === undefined) return { ratio: null, percent: null }
-
-    const numeric = typeof raw === 'number' ? raw : parseFloat(String(raw))
-    if (Number.isNaN(numeric)) return { ratio: null, percent: null }
-
-    // 백엔드에서 이미 퍼센트 값(예: 0.11%)을 내려주므로 그대로 사용
-    return {
-      ratio: numeric,
-      percent: numeric,
-    }
-  }
-
-  const dividendYieldNormalized = normalizeDividendYield()
 
   // 지표 값 가져오기 (백엔드에서 포맷팅된 문자열 우선 사용)
   const getMetricValue = (): string => {
@@ -90,8 +74,8 @@ export const MetricModal: React.FC<MetricModalProps> = ({
       case 'roe':
       case 'return_on_equity':
         return stockData.roe_str || 'N/A'
-      case 'dividend_yield':
-        return stockData.dividend_yield_str || 'N/A'
+      case 'debt_ratio':
+        return stockData.debt_ratio_str || 'N/A'
       case 'beta':
         return stockData.beta_str || 'N/A'
       case 'eps':
@@ -103,26 +87,26 @@ export const MetricModal: React.FC<MetricModalProps> = ({
     }
   }
 
-  // AI 인사이트 가져오기 (카테고리 기반 매핑)
+  // AI 인사이트 가져오기 (직접 매핑)
   const getAIInsight = (): string | undefined => {
     if (!stockData.metric_insights) return undefined
 
-    // 각 지표를 해당 카테고리로 매핑
-    const categoryMap: Record<string, keyof typeof stockData.metric_insights> = {
-      pe_ratio: 'valuation',
-      pb_ratio: 'valuation',
-      roe: 'profitability',
-      return_on_equity: 'profitability',
-      eps: 'profitability',
-      dividend_yield: 'dividend',
-      beta: 'volatility',
-      target_mean_price: 'volatility',
+    // 백엔드 metric_insights 구조에 맞게 직접 매핑
+    // 백엔드: { per, pbr, roe, eps, debt_ratio, target_gap }
+    const insightMap: Record<string, keyof typeof stockData.metric_insights> = {
+      pe_ratio: 'per',
+      pb_ratio: 'pbr',
+      roe: 'roe',
+      return_on_equity: 'roe',
+      eps: 'eps',
+      debt_ratio: 'debt_ratio',
+      target_mean_price: 'target_gap',
     }
 
-    const category = categoryMap[metricKey]
-    if (!category) return undefined
+    const insightKey = insightMap[metricKey]
+    if (!insightKey) return undefined
 
-    return stockData.metric_insights[category]
+    return stockData.metric_insights[insightKey]
   }
 
   const aiInsight = getAIInsight()
@@ -225,19 +209,18 @@ export const MetricModal: React.FC<MetricModalProps> = ({
         }
         break
       }
-      case 'dividend_yield':
-        // 퍼센트 값 그대로 비교 (예: 0.11% -> 0.11로 전달됨)
-        const divRatio = dividendYieldNormalized.ratio
-        if (divRatio !== null && divRatio !== undefined) {
-          if (divRatio >= 5) {
+      case 'debt_ratio': {
+        const debtRatio = stockData.debt_ratio
+        if (debtRatio !== null && debtRatio !== undefined) {
+          if (debtRatio <= 100) {
             return {
-              status: '높은 배당',
+              status: '안정적',
               colorClass: 'text-emerald-600',
               bgClass: 'bg-emerald-50',
               textColor: 'text-emerald-700',
             }
           }
-          if (divRatio >= 2) {
+          if (debtRatio <= 200) {
             return {
               status: '적정',
               colorClass: 'text-slate-600',
@@ -246,13 +229,14 @@ export const MetricModal: React.FC<MetricModalProps> = ({
             }
           }
           return {
-            status: '낮은 배당',
-            colorClass: 'text-slate-600',
-            bgClass: 'bg-slate-50',
-            textColor: 'text-slate-700',
+            status: '위험',
+            colorClass: 'text-rose-600',
+            bgClass: 'bg-rose-50',
+            textColor: 'text-rose-700',
           }
         }
         break
+      }
       case 'beta': {
         const beta = stockData.beta
         if (beta !== null && beta !== undefined) {
@@ -409,14 +393,14 @@ export const MetricModal: React.FC<MetricModalProps> = ({
         const isNeutral = roePercent >= 10 && roePercent < 15
         return { percentage, isGood, isNeutral, value: roePercent }
       }
-      case 'dividend_yield': {
-        const divRatio = dividendYieldNormalized.ratio
-        if (divRatio === null || divRatio === undefined) return null
-        // 0~10% 범위 기준 (5% 이상: 좋음, 2~5%: 적정, 0~2%: 낮음)
-        const percentage = Math.min((divRatio / 10) * 100, 100)
-        const isGood = divRatio >= 5
-        const isNeutral = divRatio >= 2 && divRatio < 5
-        return { percentage, isGood, isNeutral, value: divRatio }
+      case 'debt_ratio': {
+        const debtRatio = stockData.debt_ratio
+        if (debtRatio === null || debtRatio === undefined) return null
+        // 0~300% 범위 기준 (100% 이하: 좋음, 100~200%: 적정, 200~300%: 나쁨)
+        const percentage = Math.min((debtRatio / 300) * 100, 100)
+        const isGood = debtRatio <= 100
+        const isNeutral = debtRatio > 100 && debtRatio <= 200
+        return { percentage, isGood, isNeutral, value: debtRatio }
       }
       case 'target_mean_price': {
         if (stockData.target_upside !== null && stockData.target_upside !== undefined) {

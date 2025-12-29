@@ -40,14 +40,14 @@ export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
   const roePercent = toNumber(data.roe) ?? (toNumber(data.return_on_equity) !== null
     ? (toNumber(data.return_on_equity) as number) * 100
     : null)
-  const dividendYieldRaw = toNumber(data.dividend_yield)
+  const debtRatioRaw = toNumber(data.debt_ratio)
   const epsValue = toNumber(data.eps)
   
   // 백엔드에서 포맷팅된 문자열 사용 (우선순위)
   const peRatioStr = data.pe_ratio_str ?? (peRatio !== null ? `${peRatio.toFixed(1)}배` : 'N/A')
   const pbRatioStr = data.pb_ratio_str ?? (pbRatio !== null ? `${pbRatio.toFixed(1)}배` : 'N/A')
   const roeLabel = data.roe_str ?? (roePercent !== null ? `${roePercent.toFixed(1)}%` : 'N/A')
-  const dividendYieldStr = data.dividend_yield_str ?? (dividendYieldRaw !== null ? `${dividendYieldRaw.toFixed(2)}%` : 'N/A')
+  const debtRatioStr = data.debt_ratio_str ?? (debtRatioRaw !== null ? `${debtRatioRaw.toFixed(1)}%` : 'N/A')
   const epsLabel = data.eps_str ?? (epsValue !== null ? 'N/A' : 'N/A')
   const targetUpsideStr = data.target_upside_str ?? 'N/A'
 
@@ -69,12 +69,12 @@ export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
         if (value >= 15) return { status: '우수', badgeClass: 'bg-emerald-100 text-emerald-700' }
         if (value >= 10) return { status: '양호', badgeClass: 'bg-slate-100 text-slate-600' }
         return { status: '개선필요', badgeClass: 'bg-rose-100 text-rose-700' }
-      case 'dividend_yield':
-        // 백엔드에서 이미 퍼센트 값(예: 0.11%)을 내려주므로 그대로 퍼센트 단위로 비교
+      case 'debt_ratio':
+        // 부채비율: 100% 이하 안정, 100~200% 적정, 300% 이상 위험
         if (value === null) return { status: 'N/A', badgeClass: 'bg-slate-100 text-slate-600' }
-        if (value >= 5) return { status: '높은배당', badgeClass: 'bg-emerald-100 text-emerald-700' }
-        if (value >= 2) return { status: '적정', badgeClass: 'bg-slate-100 text-slate-600' }
-        return { status: '낮은배당', badgeClass: 'bg-slate-100 text-slate-600' }
+        if (value <= 100) return { status: '안정적', badgeClass: 'bg-emerald-100 text-emerald-700' }
+        if (value <= 200) return { status: '적정', badgeClass: 'bg-slate-100 text-slate-600' }
+        return { status: '위험', badgeClass: 'bg-rose-100 text-rose-700' }
       case 'eps':
         if (value === null) return { status: 'N/A', badgeClass: 'bg-slate-100 text-slate-600' }
         return { status: '데이터', badgeClass: 'bg-slate-100 text-slate-600' }
@@ -117,13 +117,13 @@ export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
       status: getMetricStatus('roe', roePercent),
       Icon: TrendingUp,
     },
-    // 4. 배당수익률
+    // 4. 부채비율
     {
-      key: 'dividend_yield',
-      label: '배당수익률',
-      value: dividendYieldStr,
-      numericValue: dividendYieldRaw,
-      status: getMetricStatus('dividend_yield', dividendYieldRaw),
+      key: 'debt_ratio',
+      label: '부채비율',
+      value: debtRatioStr,
+      numericValue: debtRatioRaw,
+      status: getMetricStatus('debt_ratio', debtRatioRaw),
       Icon: Coins,
     },
     // 5. EPS (주당순이익)
