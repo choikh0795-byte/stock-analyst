@@ -82,58 +82,16 @@ class AIService:
         Returns:
             Tuple[str, str]: (시스템 프롬프트, 사용자 프롬프트)
         """
-        # 시스템 프롬프트: 20년 경력 펀드매니저 페르소나
-        system_prompt = """You are a Senior Portfolio Manager with 20 years of experience in equity analysis and fund management. 
-Your role is to provide insightful, sharp, and professional investment analysis.
+        # 시스템 프롬프트: 간결하고 핵심적인 지시사항
+        system_prompt = """You are a senior fund manager providing sharp investment analysis.
 
-[Your Persona]
-- You have deep expertise in fundamental analysis, sector comparisons, and risk assessment
-- You are friendly but sharp - you don't sugarcoat risks, but you explain them clearly
-- You see beyond the numbers and identify what's really happening behind the scenes
-- You always consider sector/industry context when evaluating metrics
-- You warn about potential traps (value traps, dividend traps, leverage effects, etc.)
+Guidelines:
+- Analyze metrics in sector/industry context
+- Identify risks (value traps, dividend traps, leverage effects)
+- Use casual Korean tone (~해, ~야, ~임), no periods
+- Provide real-world insights, not textbook definitions
 
-[Your Analysis Style]
-- Always compare metrics against sector/industry averages when possible
-- Identify the "why" behind the numbers, not just the "what"
-- Point out risks and potential pitfalls that casual investors might miss
-- Use a friendly but professional tone - approachable but authoritative
-- Never use textbook definitions - provide real-world insights
-- Never end sentences with periods (.) - use casual Korean endings like "~해", "~야", "~임"
-
-[Critical Analysis Guidelines]
-
-**PER (Price-to-Earnings Ratio)**
-- Low PER: Could be undervalued, BUT also check if it's a value trap (stagnant growth, declining earnings)
-- High PER: Could be overvalued, BUT also check if premium is justified by strong growth prospects
-- Always compare to sector average (e.g., tech stocks typically have higher PER than utilities)
-
-**ROE (Return on Equity)**
-- High ROE: Good, BUT check if it's driven by excessive leverage (debt) rather than operational efficiency
-- Low ROE: Poor, but consider if it's a temporary downturn or structural issue
-- Compare to industry peers and historical trends
-
-**Dividend Yield**
-- High yield: Attractive, BUT beware of dividend traps (high yield due to falling stock price, unsustainable payout)
-- Low yield: Not necessarily bad if company reinvests for growth
-- Check payout ratio and sustainability
-
-**EPS (Earnings Per Share)**
-- Not just the number, but the trend: Is it consistently growing?
-- Compare to sector growth rates
-- Watch for one-time gains that inflate EPS
-
-**PBR (Price-to-Book Ratio)**
-- Below 1: Potentially undervalued, but check asset quality
-- Above 3: Potentially overvalued, but growth companies often trade above book value
-- Sector context matters (financials vs. tech)
-
-**Beta**
-- Low (<0.8): Less volatile, defensive
-- High (>1.2): More volatile, cyclical
-- Consider if volatility matches investor risk tolerance
-
-Output valid JSON only. Never add explanations outside the JSON structure."""
+Output valid JSON only."""
 
         # 사용자 프롬프트: 구체적인 데이터와 컨텍스트
         # 시가총액 포맷팅 (market_cap은 문자열로 전달되므로 숫자로 변환)
@@ -172,54 +130,32 @@ Output valid JSON only. Never add explanations outside the JSON structure."""
         else:
             dividend_yield_display = f"{dividend_yield_value} (퍼센트)"
         
-        user_prompt = f"""분석 대상 종목의 상세 정보를 제공합니다. 위에서 제시한 분석 가이드라인을 엄격히 준수하여 전문가적 인사이트를 제공해주세요.
+        user_prompt = f"""분석 종목: {stock_data.get('name', 'N/A')} ({stock_data.get('symbol', 'N/A')})
+현재가: {stock_data.get('current_price', 'N/A')} {stock_data.get('currency', '')}
+섹터: {sector} | 산업: {industry} | 시총: {market_cap_display}
 
-[기업 기본 정보]
-- 종목명: {stock_data.get('name', 'N/A')} ({stock_data.get('symbol', 'N/A')})
-- 현재가: {stock_data.get('current_price', 'N/A')} {stock_data.get('currency', '')}
-- 섹터(Sector): {sector}
-- 산업(Industry): {industry}
-- 시가총액: {market_cap_display} ({market_cap_context})
+재무지표:
+PER: {stock_data.get('pe_ratio', 'N/A')} | PBR: {stock_data.get('pb_ratio', 'N/A')} | ROE: {stock_data.get('roe', 'N/A')}%
+EPS: {stock_data.get('eps', 'N/A')} | 배당: {dividend_yield_display} | Beta: {stock_data.get('beta', 'N/A')}
+목표가: {stock_data.get('target_mean_price', 'N/A')} | 종합점수: {backend_score}점
 
-[핵심 재무 지표]
-- PER (주가수익비율): {stock_data.get('pe_ratio', 'N/A')}
-- PBR (주가순자산비율): {stock_data.get('pb_ratio', 'N/A')}
-- ROE (자기자본이익률): {stock_data.get('roe', 'N/A')}% (백엔드 계산값) 또는 {stock_data.get('return_on_equity', 'N/A')} (원본)
-- EPS (주당순이익): {stock_data.get('eps', 'N/A')} {stock_data.get('currency', '')}
-- 배당률 (Dividend Yield, 이미 퍼센트 값): {dividend_yield_display}
-- Beta (시장 대비 변동성): {stock_data.get('beta', 'N/A')}
-- 목표가 (Target Price): {stock_data.get('target_mean_price', 'N/A')} {stock_data.get('currency', '')}
-
-[백엔드 계산 점수]
-- 종합 투자 점수: {backend_score}점 (가중치 기반 알고리즘으로 계산됨)
-
-[분석 요청사항]
-위 정보를 바탕으로 다음 JSON 포맷으로 응답해주세요. 각 지표별 인사이트는 반드시 섹터/산업 맥락을 고려하고, 잠재적 리스크를 언급해야 합니다.
-
-**중요**: score는 백엔드에서 이미 계산되어 제공되므로, 이 값을 그대로 사용하세요. signal은 score를 기반으로 판단하세요.
-
+JSON 형식으로 응답:
 {{
-    "signal": ("매수", "중립", "주의" 중 하나. score 70 이상이면 "매수", 50~70이면 "중립", 50 미만이면 "주의"),
-    "one_line": (한 줄 핵심 코멘트, 친근하지만 전문가적인 톤, 마침표 없음),
-    "summary": (투자 포인트 3가지 요약, 리스트 형태, 각 항목 마침표 없음),
-    "risk": (주의해야 할 리스크 1가지, 마침표 없음),
+    "signal": ("매수"[score≥70], "중립"[50≤score<70], "주의"[score<50]),
+    "one_line": "핵심 코멘트 (마침표 없음)",
+    "summary": ["포인트1", "포인트2", "포인트3"],
+    "risk": "주요 리스크 1가지",
     "metric_insights": {{
-        "pe_ratio": (PER 지표에 대한 전문가적 평가. 섹터 평균 대비 평가, Value Trap 가능성 등 고려. 친근하지만 날카로운 톤, 마침표 없음. 값이 null이면 "데이터 없음"으로),
-        "pb_ratio": (PBR 지표에 대한 전문가적 평가. 섹터 맥락 고려, 마침표 없음. 값이 null이면 "데이터 없음"으로),
-        "return_on_equity": (ROE 지표에 대한 전문가적 평가. 레버리지 효과 의심, 산업 대비 평가 포함, 마침표 없음. 값이 null이면 "데이터 없음"으로),
-        "roe": (ROE 지표에 대한 전문가적 평가. return_on_equity와 동일한 내용, 마침표 없음. 값이 null이면 "데이터 없음"으로),
-        "eps": (EPS 지표에 대한 전문가적 평가. 성장 추세, 섹터 대비 평가 포함, 마침표 없음. 값이 null이면 "데이터 없음"으로),
-        "dividend_yield": (배당률 지표에 대한 전문가적 평가. 이 값은 이미 퍼센트 단위(예: 0.11%)이므로 100을 다시 곱하지 말 것. 배당 함정 가능성 경고 포함, 마침표 없음. 값이 null이면 "데이터 없음"으로),
-        "beta": (Beta 지표에 대한 전문가적 평가. 변동성 의미 해석, 마침표 없음. 값이 null이면 "데이터 없음"으로),
-        "target_mean_price": (목표가 지표에 대한 전문가적 평가. 상승 여력 분석, 마침표 없음. 값이 null이면 "데이터 없음"으로)
+        "pe_ratio": "섹터 맥락 고려한 평가 (null이면 '데이터 없음')",
+        "pb_ratio": "섹터 맥락 고려한 평가",
+        "return_on_equity": "레버리지 효과 고려한 평가",
+        "roe": "return_on_equity와 동일",
+        "eps": "성장 추세 평가",
+        "dividend_yield": "배당 함정 여부 평가 (이미 % 단위)",
+        "beta": "변동성 해석",
+        "target_mean_price": "상승 여력 평가"
     }}
-}}
-
-**중요**: 
-- 모든 metric_insights는 단순한 정의가 아닌, 섹터/산업 맥락을 고려한 전문가적 인사이트여야 함
-- 잠재적 리스크나 함정을 언급할 때는 친근하지만 날카로운 톤으로
-- 전송된 영문 파라미터 명을 언급하지 말 것 (ex. return_on_equity와 동일한 내용으로, 과도한 레버리지 사용이 없어서 운용 효율성이 의심스러워)
-- 예시: "PER가 6.1배로 낮아서 저평가 상태입니다" (X) → "반도체 섹터임에도 PER 6배는 이례적인 저평가야. 다만 업황 둔화 우려가 과도하게 반영된 것인지, 실제 실적 악화 신호인지 확인이 필요해" (O)"""
+}}"""
         
         return system_prompt, user_prompt
 

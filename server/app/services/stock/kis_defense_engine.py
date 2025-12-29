@@ -70,6 +70,7 @@ class KisDefenseEngine:
         self,
         metric_name: str,
         strategies: List[Tuple[str, Callable[[], Optional[float]]]],
+        allow_zero: bool = False,
     ) -> Optional[float]:
         """
         방어 전략들을 순차적으로 실행하고 결과를 로깅합니다.
@@ -77,6 +78,7 @@ class KisDefenseEngine:
         Args:
             metric_name: 지표 이름 (예: "ROE", "Dividend Yield", "Target Price")
             strategies: (step_name, strategy_func) 튜플 리스트
+            allow_zero: True이면 0.0도 유효한 값으로 처리 (배당수익률 등)
 
         Returns:
             Optional[float]: 성공한 첫 번째 값 또는 None
@@ -84,12 +86,19 @@ class KisDefenseEngine:
         for step_num, (step_name, strategy_func) in enumerate(strategies, start=1):
             try:
                 result = strategy_func()
-                if result is not None and result != 0:
+                # allow_zero=True이면 0.0도 성공으로 처리 (배당수익률 등)
+                # allow_zero=False이면 0이 아닌 값만 성공으로 처리 (ROE, 목표가 등)
+                is_valid = result is not None and (allow_zero or result != 0)
+
+                if is_valid:
                     logger.info(f"[Defense][{metric_name}] Step {step_num} ({step_name}) -> Success (Value: {result})")
                     self.defense_summary[metric_name] = f"Step {step_num} ({step_name})"
                     return result
                 else:
-                    logger.info(f"[Defense][{metric_name}] Step {step_num} ({step_name}) -> Failed (No data)")
+                    if result is None:
+                        logger.info(f"[Defense][{metric_name}] Step {step_num} ({step_name}) -> Failed (result=None)")
+                    else:
+                        logger.info(f"[Defense][{metric_name}] Step {step_num} ({step_name}) -> Failed (result={result}, allow_zero={allow_zero})")
             except Exception as e:
                 logger.warning(f"[Defense][{metric_name}] Step {step_num} ({step_name}) -> Failed (Error: {e})")
 
@@ -287,6 +296,8 @@ class KisDefenseEngine:
         Returns:
             Optional[float]: 배당수익률 (% 단위) 또는 0.0
         """
+        logger.info(f"[Dividend-Process] 배당수익률 계산 시작: {stock_code}, 현재가={current_price}")
+
         # 방어 전략 정의
         strategies = [
             ("Field Check", lambda: self._dividend_step1_field_check(kis_data)),
@@ -295,23 +306,33 @@ class KisDefenseEngine:
             ("Default Zero", lambda: self._dividend_step4_default()),
         ]
 
-        result = self._execute_defense_strategies("Dividend Yield", strategies)
+        # allow_zero=True: 배당수익률 0.0도 유효한 값으로 처리
+        result = self._execute_defense_strategies("Dividend Yield", strategies, allow_zero=True)
         # 배당수익률은 최소 0.0 반환 (None 대신)
-        return result if result is not None else 0.0
+        final_result = result if result is not None else 0.0
+        logger.info(f"[Dividend-Process] 배당수익률 계산 완료: {stock_code} -> {final_result}%")
+        return final_result
 
     def _dividend_step1_field_check(self, kis_data: Dict) -> Optional[float]:
         """
         1차 방어: 기본 조회 API에서 배당수익률 필드 직접 확인 (pdy, dvyd 등)
         """
+        logger.debug(f"[Dividend-Calc][Step1] kis_data 필드 목록: {list(kis_data.keys())[:20]}")
+
         for field in DIVIDEND_YIELD_FIELD_CANDIDATES:
             if field in kis_data:
                 try:
-                    div_yield = float(kis_data[field])
-                    if div_yield and div_yield != 0:
-                        logger.debug(f"[Defense][Dividend][Step1] 배당수익률 필드 발견: {div_yield}% (필드: {field})")
+                    raw_value = kis_data[field]
+                    logger.debug(f"[Dividend-Calc][Step1] 필드 '{field}' 발견: 원본값={raw_value}, 타입={type(raw_value)}")
+                    div_yield = float(raw_value)
+                    if div_yield is not None:  # 0.0도 허용
+                        logger.info(f"[Dividend-Calc][Step1] Success: Raw {field}={raw_value} -> {div_yield}%")
                         return div_yield
-                except (ValueError, TypeError):
+                except (ValueError, TypeError) as e:
+                    logger.debug(f"[Dividend-Calc][Step1] 필드 '{field}' 변환 실패: {e}")
                     continue
+
+        logger.debug(f"[Dividend-Calc][Step1] 배당수익률 필드 없음. 검색 대상: {DIVIDEND_YIELD_FIELD_CANDIDATES}")
         return None
 
     def _dividend_step2_dps_from_kis_data(self, kis_data: Dict, current_price: Optional[float]) -> Optional[float]:
@@ -320,65 +341,51 @@ class KisDefenseEngine:
         공식: 배당수익률 = (DPS / 현재가) * 100
         """
         if not current_price or current_price <= 0:
-            logger.debug("[Defense][Dividend][Step2] 현재가 정보 없음")
+            logger.debug(f"[Dividend-Calc][Step2] 현재가 없음: {current_price}")
             return None
 
+        logger.debug(f"[Dividend-Calc][Step2] DPS 필드 검색 시작. 현재가={current_price}")
+
         dps = None
+        found_field = None
         for field in DPS_FIELD_CANDIDATES:
             if field in kis_data:
                 try:
-                    dps = float(kis_data[field])
+                    raw_value = kis_data[field]
+                    logger.debug(f"[Dividend-Calc][Step2] 필드 '{field}' 발견: 원본값={raw_value}, 타입={type(raw_value)}")
+                    dps = float(raw_value)
                     if dps and dps > 0:
-                        logger.debug(f"[Defense][Dividend][Step2] kis_data에서 DPS 발견: {dps} (필드: {field})")
+                        found_field = field
+                        logger.debug(f"[Dividend-Calc][Step2] DPS 추출 성공: {field}={dps}")
                         break
-                except (ValueError, TypeError):
+                except (ValueError, TypeError) as e:
+                    logger.debug(f"[Dividend-Calc][Step2] 필드 '{field}' 변환 실패: {e}")
                     continue
 
         if dps and dps > 0:
             dividend_yield = (dps / current_price) * 100
-            logger.debug(f"[Defense][Dividend][Step2] DPS: {dps}, 현재가: {current_price} -> 배당수익률: {dividend_yield:.2f}%")
+            logger.info(f"[Dividend-Calc][Step2] Success: DPS={dps} (필드={found_field}), Price={current_price} -> Calc Yield: {dividend_yield:.2f}%")
             return round(dividend_yield, 2)
 
+        logger.debug(f"[Dividend-Calc][Step2] DPS 필드 없음. 검색 대상: {DPS_FIELD_CANDIDATES}")
         return None
 
     def _dividend_step3_api_calc(self, stock_code: str, current_price: Optional[float]) -> Optional[float]:
         """
         3차 방어: 배당 정보 API를 통해 계산 (별도 API 호출)
-        공식: 배당수익률 = (DPS / 현재가) * 100
+
+        NOTE: 현재 KIS API에서 get_dividend_info는 get_stock_price_info와 동일한 엔드포인트(FHKST01010100)를 사용하므로,
+        이 단계는 실제로 중복 호출입니다. Step 1, 2에서 이미 모든 배당 데이터를 확인했으므로,
+        성능 최적화를 위해 이 단계를 스킵합니다.
         """
-        if not current_price or current_price <= 0:
-            logger.debug("[Defense][Dividend][Step3] 현재가 정보 없음")
-            return None
-
-        logger.debug(f"[Defense][Dividend][Step3] 배당 정보 API 호출 (종목코드: {stock_code})")
-        dividend_data = self.api_client.get_dividend_info(stock_code)
-
-        if not dividend_data:
-            return None
-
-        dps = None
-        for field in DPS_FIELD_CANDIDATES:
-            if field in dividend_data:
-                try:
-                    dps = float(dividend_data[field])
-                    if dps and dps > 0:
-                        logger.debug(f"[Defense][Dividend][Step3] DPS 발견: {dps} (필드: {field})")
-                        break
-                except (ValueError, TypeError):
-                    continue
-
-        if dps and dps > 0:
-            dividend_yield = (dps / current_price) * 100
-            logger.debug(f"[Defense][Dividend][Step3] DPS: {dps}, 현재가: {current_price} -> 배당수익률: {dividend_yield:.2f}%")
-            return round(dividend_yield, 2)
-
+        logger.debug(f"[Dividend-Calc][Step3] 스킵됨 (중복 API 호출 방지, 성능 최적화)")
         return None
 
     def _dividend_step4_default(self) -> float:
         """
         4차 방어: 배당 없음으로 간주 (0.0 반환)
         """
-        logger.debug("[Defense][Dividend][Step4] 배당 데이터 없음, 0.0으로 설정")
+        logger.info("[Dividend-Calc][Step4] 모든 데이터 소스 실패 -> 기본값 0.0 반환 (배당 없음)")
         return 0.0
 
     def get_target_price_with_defense(
@@ -426,23 +433,12 @@ class KisDefenseEngine:
     def _target_step2_api_call(self, stock_code: str) -> Optional[float]:
         """
         2차 방어: 목표가/컨센서스 API를 통해 조회
+
+        NOTE: 현재 KIS API에서 get_target_price_info는 get_stock_price_info와 동일한 엔드포인트(FHKST01010100)를 사용하므로,
+        이 단계는 실제로 중복 호출입니다. Step 1에서 이미 모든 목표가 데이터를 확인했으므로,
+        성능 최적화를 위해 이 단계를 스킵합니다.
         """
-        logger.debug(f"[Defense][Target][Step2] 목표가 정보 API 호출 (종목코드: {stock_code})")
-        target_data = self.api_client.get_target_price_info(stock_code)
-
-        if not target_data:
-            return None
-
-        for field in TARGET_PRICE_FIELD_CANDIDATES:
-            if field in target_data:
-                try:
-                    target_price = float(target_data[field])
-                    if target_price and target_price != 0:
-                        logger.debug(f"[Defense][Target][Step2] 목표가 발견: {target_price} (필드: {field})")
-                        return target_price
-                except (ValueError, TypeError):
-                    continue
-
+        logger.debug(f"[Defense][Target][Step2] 스킵됨 (중복 API 호출 방지, 성능 최적화)")
         return None
 
     def get_defense_summary(self) -> str:
