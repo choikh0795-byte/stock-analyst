@@ -8,7 +8,7 @@ export interface MetricDefinition {
   definition: string
   summary?: string
   tip?: string
-  key: 'pe_ratio' | 'pb_ratio' | 'roe' | 'return_on_equity' | 'dividend_yield' | 'beta' | 'eps' | 'target_mean_price'
+  key: 'pe_ratio' | 'pb_ratio' | 'roe' | 'return_on_equity' | 'debt_ratio' | 'beta' | 'eps' | 'target_mean_price'
 }
 
 export const METRIC_DEFINITIONS: Record<string, MetricDefinition> = {
@@ -45,13 +45,13 @@ export const METRIC_DEFINITIONS: Record<string, MetricDefinition> = {
     tip: '15% 이상이면 우수, 10% 이상이면 양호로 봐. 단일 수치보다 최근 3~5년 추세가 상승하는지 확인해봐.',
     key: 'return_on_equity',
   },
-  dividend_yield: {
-    label: '배당률',
-    icon: '💰',
-    definition: '주가 대비 배당금이 얼마나 되는지 보여주는 지표야. 높을수록 배당을 많이 주는 종목이야. 보통 2~4%가 적정선이고, 5% 이상이면 배당주로 분류해.',
-    summary: '주가 대비 배당금을 얼마나 주는지 비율로 보여주는 지표야.',
-    tip: '2~4%면 적정, 5% 이상이면 고배당으로 봐. 배당락일·배당성향과 함께 보고, 배당이 꾸준했는지도 확인해봐.',
-    key: 'dividend_yield',
+  debt_ratio: {
+    label: '부채비율',
+    icon: '⚖️',
+    definition: '기업의 총부채를 자기자본으로 나눈 값이야. 기업이 얼마나 빚을 지고 있는지를 보여주는 지표야. 보통 100~200%가 적정선이고, 100% 이하면 안정적, 300% 이상이면 재무 리스크가 크다고 봐.',
+    summary: '기업이 자기자본 대비 얼마나 부채를 지고 있는지 보여주는 지표야.',
+    tip: '100% 이하면 매우 안정적, 100~200%는 적정, 300% 이상이면 재무 리스크가 높아. 업종별로 평균이 다르니 같은 업종과 비교해봐.',
+    key: 'debt_ratio',
   },
   beta: {
     label: '변동성 (Beta)',
