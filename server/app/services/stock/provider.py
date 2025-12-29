@@ -30,7 +30,7 @@ class StockProvider:
 
         # 데이터 병합 및 계산 컴포넌트
         self._calculator = StockCalculator()
-        self._data_merger = DataMerger(self._calculator)
+        self._data_merger = DataMerger()  # Calculator 의존성 제거 (v2)
 
         # KIS 마스터 서비스 초기화 및 데이터 로드
         try:

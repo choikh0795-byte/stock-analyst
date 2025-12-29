@@ -267,37 +267,53 @@ class YahooStockProvider(BaseStockProvider):
         """
         Yahoo Finance에서 재무제표 데이터만 경량으로 조회합니다.
 
-        성능 최적화:
-        - stock.info만 조회 (history, options 등 불필요한 데이터 스킵)
-        - 부채비율, 목표가만 추출
+        성능 최적화 (v2):
+        - ROE, 부채비율, 목표가를 이미 계산된 값으로 직접 추출
+        - 불필요한 계산 로직 제거 (Calculator 호출 불필요)
+        - KIS와 병합 시 즉시 사용 가능
 
         Args:
             ticker: 주식 티커 심볼
 
         Returns:
-            Dict: 재무제표 데이터 (부채비율, 목표가)
+            Dict: 재무제표 데이터 (ROE, 부채비율, 목표가)
         """
         try:
             stock = self._get_ticker(ticker)
-            info = stock.info  # 빠른 조회 (fast_info 보완 불필요)
+            info = stock.info
 
             if info is None:
                 logger.warning(f"[YahooStockProvider] info 조회 실패: {ticker}")
                 return {}
 
-            # 부채비율 계산에 필요한 데이터
-            total_debt = info.get("totalDebt") or info.get("totalLiabilities")
-            total_equity = info.get("totalStockholderEquity") or info.get("totalEquity")
+            # ✅ ROE 직접 추출 (Yahoo가 이미 계산한 값)
+            roe = info.get("returnOnEquity")
+            roe_percent = None
+            if roe is not None:
+                try:
+                    roe_percent = float(roe) * 100  # 0.14094 → 14.094%
+                    logger.info(f"[YahooStockProvider] ROE 추출: {roe_percent:.2f}%")
+                except (ValueError, TypeError):
+                    pass
 
-            # 목표가
+            # ✅ 부채비율 직접 추출 (Yahoo가 이미 계산한 값, 이미 % 단위)
+            debt_ratio = info.get("debtToEquity")
+            if debt_ratio is not None:
+                try:
+                    debt_ratio = float(debt_ratio)
+                    logger.info(f"[YahooStockProvider] 부채비율 추출: {debt_ratio:.2f}%")
+                except (ValueError, TypeError):
+                    debt_ratio = None
+
+            # ✅ 목표가 직접 추출
             target_mean_price = info.get("targetMeanPrice")
+            if target_mean_price is not None:
+                logger.info(f"[YahooStockProvider] 목표가 추출: {target_mean_price}")
 
             return {
-                "total_debt": total_debt,
-                "total_equity": total_equity,
-                "target_mean_price": target_mean_price,
-                # Calculator에서 사용할 수 있도록 원본 info도 포함
-                "_raw_info": info,
+                "roe": roe_percent,  # % 단위 (예: 14.09)
+                "debt_ratio": debt_ratio,  # % 단위 (예: 4.57)
+                "target_mean_price": target_mean_price,  # 원화 또는 달러 (예: 146689.66)
             }
 
         except Exception as e:
