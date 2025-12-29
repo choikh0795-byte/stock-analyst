@@ -99,5 +99,6 @@ if __name__ == "__main__":
     )
 
 @app.get("/health")
+@app.head("/health")
 def health_check():
     return {"status": "ok"}    

@@ -318,6 +318,7 @@ class StockCalculator:
         1. Yahoo Finance 제공 debtToEquity 사용
         2. 없을 경우에만 직접 계산
         """
+        logger.info(f"[Calculation] 부채비율 계산 시작: {info}")
 
         # 1️⃣ Yahoo 제공 값 우선 사용
         debt_to_equity = info.get("debtToEquity")
@@ -373,6 +374,7 @@ class StockCalculator:
         stock 객체 없이 ROE를 계산합니다.
         balance_sheet와 income_stmt 조회 단계는 건너뜁니다.
         """
+
         return_on_equity = info.get("returnOnEquity")
         roe = None
         if return_on_equity is not None:
