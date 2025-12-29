@@ -69,22 +69,9 @@ class StockService:
         # Provider에서 표준화된 딕셔너리 직접 받기
         info = self.provider.get_stock_info(ticker)
 
-        logger.info(f"[DEBUG] === stock.info 전체 데이터 (ticker: {ticker}) ===")
-        try:
-            logger.info(json.dumps(info, indent=2, ensure_ascii=False, default=str))
-        except Exception as e:
-            logger.warning(f"[DEBUG] stock.info 로그 출력 실패: {e}")
-            logger.info(f"[DEBUG] stock.info 타입: {type(info)}, 키 개수: {len(info) if isinstance(info, dict) else 'N/A'}")
-
         # Provider가 이미 계산한 current_price 사용
         current_price = info.get("current_price") or 0.0
         fdr_data = {}  # 캐시 제거로 인해 빈 딕셔너리 사용
-
-        logger.info(f"[DEBUG] === PER/PBR 계산 시작 전 변수 확인 ===")
-        logger.info(f"[DEBUG] pe_ratio (Provider): {info.get('pe_ratio')} (type: {type(info.get('pe_ratio'))})")
-        logger.info(f"[DEBUG] pb_ratio (Provider): {info.get('pb_ratio')} (type: {type(info.get('pb_ratio'))})")
-        logger.info(f"[DEBUG] market_cap (Provider): {info.get('market_cap')} (type: {type(info.get('market_cap'))})")
-        logger.info(f"[DEBUG] current_price (Provider): {current_price} (type: {type(current_price)})")
 
         # Provider가 이미 계산한 값들을 사용하거나, 없을 경우 calculator로 계산
         market_cap = info.get("market_cap")
@@ -154,11 +141,6 @@ class StockService:
         change_percentage_str = self.formatter.format_change_percentage(change_percentage)
         target_upside_str = self.formatter.format_target_upside(target_upside)
 
-        logger.info(f"[Formatting Check] {ticker} -> Price: {current_price} -> Formatted: {current_price_str}")
-        logger.info(f"[Formatting Check] {ticker} -> ROE: {roe} -> Formatted: {roe_str}")
-        logger.info(f"[Formatting Check] {ticker} -> EPS: {eps} -> Formatted: {eps_str}")
-        logger.info(f"[Formatting Check] {ticker} -> Dividend Yield: {dividend_yield} -> Formatted: {dividend_yield_str}")
-
         is_korean_stock = is_korean
         currency_symbol = "₩" if is_korean else "$"
 
@@ -169,9 +151,8 @@ class StockService:
             try:
                 # float로 먼저 변환 후 int로 변환 (소수점 제거)
                 market_cap_str_value = str(int(float(market_cap)))
-                logger.info(f"[DEBUG] market_cap 변환: {market_cap} (type: {type(market_cap)}) -> {market_cap_str_value} (type: {type(market_cap_str_value)})")
             except (ValueError, TypeError) as e:
-                logger.warning(f"[DEBUG] market_cap 변환 실패: {e}")
+                logger.warning(f"market_cap 변환 실패: {e}")
                 market_cap_str_value = None
         else:
             market_cap_str_value = None
@@ -223,12 +204,10 @@ class StockService:
         # market_cap 타입 최종 확인 및 강제 변환
         if 'market_cap' in data and data['market_cap'] is not None:
             if not isinstance(data['market_cap'], str):
-                logger.warning(f"[DEBUG] market_cap이 문자열이 아님: {data['market_cap']} (type: {type(data['market_cap'])})")
                 try:
                     data['market_cap'] = str(int(float(data['market_cap'])))
-                    logger.info(f"[DEBUG] market_cap 강제 변환 완료: {data['market_cap']}")
                 except (ValueError, TypeError) as e:
-                    logger.error(f"[DEBUG] market_cap 강제 변환 실패: {e}")
+                    logger.error(f"market_cap 강제 변환 실패: {e}")
                     data['market_cap'] = None
 
         # 점수 계산 (가중치 기반 알고리즘)
@@ -258,34 +237,10 @@ class StockService:
                 logger.warning(f"[StockService] KIS 마스터에서 한국 종목명 조회 실패: {e}")
 
         data["name"] = korean_stock_name or stock_name
-        
-        logger.info(f"[DEBUG] === 최종 반환 값 확인 ===")
-        logger.info(f"[DEBUG] market_cap 최종값: {data.get('market_cap')} (type: {type(data.get('market_cap'))})")
-        logger.info(f"[DEBUG] 최종 pe_ratio: {pe_ratio} (type: {type(pe_ratio)}) -> pe_ratio_str: {pe_ratio_str}")
-        logger.info(f"[DEBUG] 최종 pb_ratio: {pb_ratio} (type: {type(pb_ratio)}) -> pb_ratio_str: {pb_ratio_str}")
-        logger.info(f"[DEBUG] 최종 roe: {roe} (type: {type(roe)}) -> roe_str: {roe_str}")
-        logger.info(f"[DEBUG] 최종 dividend_yield: {dividend_yield} (type: {type(dividend_yield)}) -> dividend_yield_str: {dividend_yield_str}")
-        logger.info(f"[DEBUG] 최종 eps: {eps} (type: {type(eps)}) -> eps_str: {eps_str}")
-        logger.info(f"[DEBUG] 최종 beta: {beta} (type: {type(beta)}) -> beta_str: {beta_str}")
-        logger.info(f"[DEBUG] 최종 change_value: {change_value} -> change_value_str: {change_value_str}")
-        logger.info(f"[DEBUG] 최종 change_percentage: {change_percentage} -> change_percentage_str: {change_percentage_str}")
-        logger.info(f"[DEBUG] 최종 change_status: {change_status}")
-        logger.info(f"[DEBUG] 최종 target_upside: {target_upside} -> target_upside_str: {target_upside_str}")
-        logger.info(f"[DEBUG] 최종 score: {score} (type: {type(score)})")
+
         logger.info(
             f"[StockService] 반환: {data['name']} / PER:{pe_ratio_str} / PBR:{pb_ratio_str} / ROE:{roe_str} / EPS:{eps_str} / Score:{score}"
         )
-        
-        # 최종 JSON payload를 서버 콘솔에 출력
-        print("\n" + "="*80)
-        print(f"[StockService] 최종 JSON Payload (ticker: {ticker})")
-        print("="*80)
-        try:
-            print(json.dumps(data, indent=2, ensure_ascii=False, default=str))
-        except Exception as e:
-            logger.warning(f"[StockService] JSON 직렬화 실패: {e}")
-            print(f"JSON 직렬화 실패: {e}")
-        print("="*80 + "\n")
         
         self._save_to_db(db, ticker, data)
 

@@ -118,8 +118,8 @@ FIELD_NAME_MAPPING = {
 # ROE 필드명 후보
 ROE_FIELD_CANDIDATES = ["roe", "ROE", "rtn_on_equity", "rtn_on_eqty", "return_on_equity"]
 
-# 배당수익률 필드명 후보
-DIVIDEND_YIELD_FIELD_CANDIDATES = ["dvyd", "dividend_yield", "dividendYield", "배당수익률", "배당률"]
+# 배당수익률 필드명 후보 (우선순위 순서: pdy -> dvyd -> ...)
+DIVIDEND_YIELD_FIELD_CANDIDATES = ["pdy", "dvyd", "dividend_yield", "dividendYield", "배당수익률", "배당률"]
 
 # 목표가 필드명 후보
 TARGET_PRICE_FIELD_CANDIDATES = [

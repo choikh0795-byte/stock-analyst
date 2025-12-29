@@ -272,11 +272,12 @@ class KisDefenseEngine:
         current_price: Optional[float]
     ) -> Optional[float]:
         """
-        배당수익률을 3단계 방어 로직으로 가져옵니다.
+        배당수익률을 4단계 방어 로직으로 가져옵니다.
 
-        1차 방어: 기본 조회 API에서 직접 확인
-        2차 방어: 배당 정보 API를 통해 계산 (DPS / 현재가) * 100
-        3차 방어: 배당 없음으로 간주 (0.0 반환)
+        1차 방어: 기본 조회 API에서 배당수익률 필드 직접 확인 (pdy, dvyd 등)
+        2차 방어: 기본 조회 API에서 DPS 추출하여 계산 (dps / 현재가) * 100 (추가 API 호출 없음)
+        3차 방어: 배당 정보 API를 통해 계산 (DPS / 현재가) * 100 (별도 API 호출)
+        4차 방어: 배당 없음으로 간주 (0.0 반환)
 
         Args:
             stock_code: 종목코드
@@ -289,8 +290,9 @@ class KisDefenseEngine:
         # 방어 전략 정의
         strategies = [
             ("Field Check", lambda: self._dividend_step1_field_check(kis_data)),
-            ("Dividend API Calculation", lambda: self._dividend_step2_api_calc(stock_code, current_price)),
-            ("Default Zero", lambda: self._dividend_step3_default()),
+            ("DPS Calculation (kis_data)", lambda: self._dividend_step2_dps_from_kis_data(kis_data, current_price)),
+            ("Dividend API Calculation", lambda: self._dividend_step3_api_calc(stock_code, current_price)),
+            ("Default Zero", lambda: self._dividend_step4_default()),
         ]
 
         result = self._execute_defense_strategies("Dividend Yield", strategies)
@@ -299,7 +301,7 @@ class KisDefenseEngine:
 
     def _dividend_step1_field_check(self, kis_data: Dict) -> Optional[float]:
         """
-        1차 방어: 기본 조회 API에서 배당수익률 필드 직접 확인
+        1차 방어: 기본 조회 API에서 배당수익률 필드 직접 확인 (pdy, dvyd 등)
         """
         for field in DIVIDEND_YIELD_FIELD_CANDIDATES:
             if field in kis_data:
@@ -312,28 +314,22 @@ class KisDefenseEngine:
                     continue
         return None
 
-    def _dividend_step2_api_calc(self, stock_code: str, current_price: Optional[float]) -> Optional[float]:
+    def _dividend_step2_dps_from_kis_data(self, kis_data: Dict, current_price: Optional[float]) -> Optional[float]:
         """
-        2차 방어: 배당 정보 API를 통해 계산
+        2차 방어: 기본 조회 API 응답(kis_data)에서 DPS 추출하여 계산 (추가 API 호출 없음)
         공식: 배당수익률 = (DPS / 현재가) * 100
         """
         if not current_price or current_price <= 0:
             logger.debug("[Defense][Dividend][Step2] 현재가 정보 없음")
             return None
 
-        logger.debug(f"[Defense][Dividend][Step2] 배당 정보 API 호출 (종목코드: {stock_code})")
-        dividend_data = self.api_client.get_dividend_info(stock_code)
-
-        if not dividend_data:
-            return None
-
         dps = None
         for field in DPS_FIELD_CANDIDATES:
-            if field in dividend_data:
+            if field in kis_data:
                 try:
-                    dps = float(dividend_data[field])
+                    dps = float(kis_data[field])
                     if dps and dps > 0:
-                        logger.debug(f"[Defense][Dividend][Step2] DPS 발견: {dps} (필드: {field})")
+                        logger.debug(f"[Defense][Dividend][Step2] kis_data에서 DPS 발견: {dps} (필드: {field})")
                         break
                 except (ValueError, TypeError):
                     continue
@@ -345,11 +341,44 @@ class KisDefenseEngine:
 
         return None
 
-    def _dividend_step3_default(self) -> float:
+    def _dividend_step3_api_calc(self, stock_code: str, current_price: Optional[float]) -> Optional[float]:
         """
-        3차 방어: 배당 없음으로 간주 (0.0 반환)
+        3차 방어: 배당 정보 API를 통해 계산 (별도 API 호출)
+        공식: 배당수익률 = (DPS / 현재가) * 100
         """
-        logger.debug("[Defense][Dividend][Step3] 배당 데이터 없음, 0.0으로 설정")
+        if not current_price or current_price <= 0:
+            logger.debug("[Defense][Dividend][Step3] 현재가 정보 없음")
+            return None
+
+        logger.debug(f"[Defense][Dividend][Step3] 배당 정보 API 호출 (종목코드: {stock_code})")
+        dividend_data = self.api_client.get_dividend_info(stock_code)
+
+        if not dividend_data:
+            return None
+
+        dps = None
+        for field in DPS_FIELD_CANDIDATES:
+            if field in dividend_data:
+                try:
+                    dps = float(dividend_data[field])
+                    if dps and dps > 0:
+                        logger.debug(f"[Defense][Dividend][Step3] DPS 발견: {dps} (필드: {field})")
+                        break
+                except (ValueError, TypeError):
+                    continue
+
+        if dps and dps > 0:
+            dividend_yield = (dps / current_price) * 100
+            logger.debug(f"[Defense][Dividend][Step3] DPS: {dps}, 현재가: {current_price} -> 배당수익률: {dividend_yield:.2f}%")
+            return round(dividend_yield, 2)
+
+        return None
+
+    def _dividend_step4_default(self) -> float:
+        """
+        4차 방어: 배당 없음으로 간주 (0.0 반환)
+        """
+        logger.debug("[Defense][Dividend][Step4] 배당 데이터 없음, 0.0으로 설정")
         return 0.0
 
     def get_target_price_with_defense(
