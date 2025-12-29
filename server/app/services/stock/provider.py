@@ -1,7 +1,11 @@
 import logging
 import re
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, Optional
 
+from .calculator import StockCalculator
+from .data_merger import DataMerger
 from .kis_master_service import KisMasterService
 from .kis_provider import KisStockProvider
 from .yahoo_provider import YahooStockProvider
@@ -23,7 +27,11 @@ class StockProvider:
         # 전략 패턴: Concrete Strategy 인스턴스화
         self._yahoo_provider = YahooStockProvider()
         self._kis_provider = KisStockProvider()
-        
+
+        # 데이터 병합 및 계산 컴포넌트
+        self._calculator = StockCalculator()
+        self._data_merger = DataMerger(self._calculator)
+
         # KIS 마스터 서비스 초기화 및 데이터 로드
         try:
             self._kis_master = KisMasterService()
@@ -123,39 +131,94 @@ class StockProvider:
             logger.error(f"[StockProvider] yfinance 검색 중 예상치 못한 오류: {e}")
             raise ValueError(f"검색 중 오류가 발생했습니다: {str(e)}")
 
+    def _safe_kis_fetch(self, ticker: str) -> Dict:
+        """
+        KIS Provider로 주식 정보를 안전하게 조회합니다 (예외 처리).
+
+        Args:
+            ticker: 주식 티커 심볼
+
+        Returns:
+            Dict: KIS 데이터 또는 에러 정보가 담긴 딕셔너리
+        """
+        try:
+            return self._kis_provider.get_stock_info(ticker)
+        except Exception as e:
+            logger.error(f"[StockProvider] KIS 조회 실패: {ticker}, 오류: {e}")
+            return {"_error": str(e)}
+
+    def _safe_yahoo_financial_fetch(self, ticker: str) -> Dict:
+        """
+        Yahoo Provider로 재무제표 데이터를 안전하게 조회합니다 (예외 처리).
+
+        Args:
+            ticker: 주식 티커 심볼
+
+        Returns:
+            Dict: Yahoo 재무제표 데이터 또는 빈 딕셔너리
+        """
+        try:
+            return self._yahoo_provider.get_financial_data_only(ticker)
+        except Exception as e:
+            logger.error(f"[StockProvider] Yahoo 재무제표 조회 실패: {ticker}, 오류: {e}")
+            return {}
+
     def get_stock_info(self, ticker: str) -> Dict:
         """
         주식 정보를 가져오는 라우터 메서드.
-        
-        Ticker에 따라 적절한 Provider를 선택하고, 실패 시 Fallback을 수행합니다.
-        
+
+        한국 주식:
+        - KIS와 Yahoo를 병렬로 호출 (성능 최적화)
+        - KIS: 현재가, PER, PBR, ROE, EPS
+        - Yahoo: 부채비율, 목표가 (재무제표)
+        - 병합하여 반환
+
+        기타 주식:
+        - Yahoo만 사용
+
         Args:
             ticker: 주식 티커 심볼 (예: "005930.KS", "AAPL")
-            
+
         Returns:
             Dict: 표준화된 주식 정보 딕셔너리
         """
         ticker_upper = ticker.upper()
         is_korean = ticker_upper.endswith((".KS", ".KQ"))
-        
-        # 한국 주식인 경우 KIS Provider 사용
+
+        # 한국 주식인 경우: KIS + Yahoo 병렬 호출
         if is_korean:
-            logger.info(f"[StockProvider] 한국 주식 감지: {ticker} -> KIS Provider 사용")
-            try:
-                info = self._kis_provider.get_stock_info(ticker)
-                logger.info(f"[StockProvider] KIS Provider 성공: {ticker}")
-                return info
-            except Exception as e:
-                logger.warning(f"[StockProvider] KIS Provider 실패: {ticker}, 오류: {e}")
-                logger.info(f"[StockProvider] Fallback: Yahoo Provider로 재시도: {ticker}")
-                # Fallback: Yahoo Provider로 재시도
+            logger.info(f"[StockProvider] 한국 주식 감지: {ticker} -> KIS + Yahoo 병렬 호출")
+
+            start_time = time.time()
+
+            # 병렬 호출 (성능 최우선)
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                kis_future = executor.submit(self._safe_kis_fetch, ticker)
+                yahoo_future = executor.submit(self._safe_yahoo_financial_fetch, ticker)
+
+                # 결과 수집
+                kis_data = kis_future.result()
+                yahoo_financial = yahoo_future.result()
+
+            elapsed_time = (time.time() - start_time) * 1000  # ms 단위
+            logger.info(f"[StockProvider] 병렬 호출 완료: {ticker}, 총 {elapsed_time:.0f}ms")
+
+            # KIS 실패 시 Yahoo Fallback
+            if "_error" in kis_data:
+                logger.warning(f"[StockProvider] KIS 실패 → Yahoo Fallback: {ticker}")
                 try:
-                    info = self._yahoo_provider.get_stock_info(ticker)
-                    logger.info(f"[StockProvider] Yahoo Provider Fallback 성공: {ticker}")
-                    return info
+                    fallback_data = self._yahoo_provider.get_stock_info(ticker)
+                    logger.info(f"[StockProvider] Yahoo Fallback 성공: {ticker}")
+                    return fallback_data
                 except Exception as fallback_error:
-                    logger.error(f"[StockProvider] Yahoo Provider Fallback도 실패: {ticker}, 오류: {fallback_error}")
-                    raise
+                    logger.error(f"[StockProvider] Yahoo Fallback도 실패: {ticker}, 오류: {fallback_error}")
+                    raise ValueError(f"모든 데이터 소스 실패: {ticker}")
+
+            # KIS + Yahoo 병합
+            merged_data = self._data_merger.merge_with_financial(kis_data, yahoo_financial)
+            logger.info(f"[StockProvider] 병합 완료: {ticker}")
+            return merged_data
+
         else:
             # 미국 주식 등 기타 주식은 Yahoo Provider 사용
             logger.info(f"[StockProvider] 미국/기타 주식 감지: {ticker} -> Yahoo Provider 사용")
