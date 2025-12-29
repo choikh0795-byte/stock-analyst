@@ -263,3 +263,44 @@ class YahooStockProvider(BaseStockProvider):
             "currency": currency,
         }
 
+    def get_financial_data_only(self, ticker: str) -> Dict:
+        """
+        Yahoo Finance에서 재무제표 데이터만 경량으로 조회합니다.
+
+        성능 최적화:
+        - stock.info만 조회 (history, options 등 불필요한 데이터 스킵)
+        - 부채비율, 목표가만 추출
+
+        Args:
+            ticker: 주식 티커 심볼
+
+        Returns:
+            Dict: 재무제표 데이터 (부채비율, 목표가)
+        """
+        try:
+            stock = self._get_ticker(ticker)
+            info = stock.info  # 빠른 조회 (fast_info 보완 불필요)
+
+            if info is None:
+                logger.warning(f"[YahooStockProvider] info 조회 실패: {ticker}")
+                return {}
+
+            # 부채비율 계산에 필요한 데이터
+            total_debt = info.get("totalDebt") or info.get("totalLiabilities")
+            total_equity = info.get("totalStockholderEquity") or info.get("totalEquity")
+
+            # 목표가
+            target_mean_price = info.get("targetMeanPrice")
+
+            return {
+                "total_debt": total_debt,
+                "total_equity": total_equity,
+                "target_mean_price": target_mean_price,
+                # Calculator에서 사용할 수 있도록 원본 info도 포함
+                "_raw_info": info,
+            }
+
+        except Exception as e:
+            logger.error(f"[YahooStockProvider] 재무제표 조회 실패: {ticker}, 오류: {e}")
+            return {}
+
