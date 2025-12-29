@@ -103,25 +103,28 @@ export const MetricModal: React.FC<MetricModalProps> = ({
     }
   }
 
-  // AI 인사이트 가져오기 (ROE는 roe 또는 return_on_equity로 매핑, EPS는 eps로 직접 접근)
+  // AI 인사이트 가져오기 (카테고리 기반 매핑)
   const getAIInsight = (): string | undefined => {
     if (!stockData.metric_insights) return undefined
-    
-    // metricKey에 따라 적절한 키로 매핑
-    if (metricKey === 'roe' || metricKey === 'return_on_equity') {
-      // roe 키를 먼저 확인하고, 없으면 return_on_equity로 fallback
-      return stockData.metric_insights.roe || stockData.metric_insights.return_on_equity
+
+    // 각 지표를 해당 카테고리로 매핑
+    const categoryMap: Record<string, keyof typeof stockData.metric_insights> = {
+      pe_ratio: 'valuation',
+      pb_ratio: 'valuation',
+      roe: 'profitability',
+      return_on_equity: 'profitability',
+      eps: 'profitability',
+      dividend_yield: 'dividend',
+      beta: 'volatility',
+      target_mean_price: 'volatility',
     }
-    // EPS는 그대로 사용
-    else if (metricKey === 'eps') {
-      return stockData.metric_insights.eps
-    }
-    // 다른 지표들은 metricKey 그대로 사용
-    else {
-      return stockData.metric_insights[metricKey as keyof typeof stockData.metric_insights] as string | undefined
-    }
+
+    const category = categoryMap[metricKey]
+    if (!category) return undefined
+
+    return stockData.metric_insights[category]
   }
-  
+
   const aiInsight = getAIInsight()
 
   // 지표 평가 상태 및 색상 결정

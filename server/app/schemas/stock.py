@@ -99,14 +99,22 @@ class StockAnalysisResponse(BaseModel):
     ai_analysis: Optional[dict] = None
 
 
+class MetricInsights(BaseModel):
+    """지표 인사이트 - 카테고리별 요약"""
+    valuation: str  # PER, PBR 종합 평가
+    profitability: str  # ROE, EPS 수익성 요약
+    dividend: str  # 배당 평가
+    volatility: str  # Beta, 목표가 변동성 해석
+
+
 class AIAnalysisResponse(BaseModel):
-    """AI 분석 결과 스키마"""
+    """AI 분석 결과 스키마 - 최적화된 구조"""
     score: float
     signal: str
     one_line: str
     summary: List[str]
     risk: str
-    metric_insights: Optional[Dict[str, str]] = None
+    metric_insights: MetricInsights
 
     class Config:
         json_schema_extra = {
@@ -119,7 +127,13 @@ class AIAnalysisResponse(BaseModel):
                     "지속적인 혁신과 R&D 투자",
                     "건전한 재무 지표"
                 ],
-                "risk": "시장 변동성과 경쟁 심화"
+                "risk": "시장 변동성과 경쟁 심화",
+                "metric_insights": {
+                    "valuation": "밸류에이션 적정 수준",
+                    "profitability": "수익성 우수",
+                    "dividend": "배당률 양호",
+                    "volatility": "변동성 보통"
+                }
             }
         }
 
