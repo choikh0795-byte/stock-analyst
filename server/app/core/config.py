@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     KIS_BASE_URL: str = "https://openapi.koreainvestment.com:9443"
     KIS_CANO: str | None = None  # 계좌번호 앞 8자리, Optional
     KIS_ACNT_PRDT_CD: str | None = None  # 계좌번호 뒤 2자리, Optional
-    
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

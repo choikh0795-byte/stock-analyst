@@ -314,32 +314,39 @@ class StockCalculator:
         """
         부채비율 계산
 
-        부채비율 = (총부채 / 총자본) * 100
-
-        Args:
-            info: yfinance info 딕셔너리
-
-        Returns:
-            Optional[float]: 부채비율 (%) 또는 None
+        우선순위:
+        1. Yahoo Finance 제공 debtToEquity 사용
+        2. 없을 경우에만 직접 계산
         """
+
+        # 1️⃣ Yahoo 제공 값 우선 사용
+        debt_to_equity = info.get("debtToEquity")
+        try:
+            if debt_to_equity is not None:
+                debt_to_equity = float(debt_to_equity)
+                if debt_to_equity >= 0:
+                    logger.info(
+                        f"[Calculation] 부채비율(Yahoo 제공) 사용: {debt_to_equity}%"
+                    )
+                    return round(debt_to_equity, 2)
+        except (TypeError, ValueError):
+            pass  # fallback
+
+        # 2️⃣ fallback 계산
+        logger.info("[Calculation] 부채비율 직접 계산 시도")
+
         total_debt = info.get("totalDebt")
         total_equity = info.get("totalStockholderEquity") or info.get("totalEquity")
 
-        # 자본총계가 없으면 자산 - 부채로 계산
         if not total_equity or total_equity <= 0:
-            total_assets = info.get("totalAssets", 0)
-            total_liabilities = info.get("totalLiabilities", 0)
-            if total_assets > 0 and total_liabilities >= 0:
+            total_assets = info.get("totalAssets")
+            total_liabilities = info.get("totalLiabilities")
+            if total_assets is not None and total_liabilities is not None:
                 total_equity = total_assets - total_liabilities
-                logger.debug(
-                    f"[Calculation] 부채비율: 자본총계 계산 (자산={total_assets}, 부채={total_liabilities}, 자본={total_equity})"
-                )
 
-        # totalDebt가 없으면 totalLiabilities 사용
         if not total_debt or total_debt <= 0:
             total_debt = info.get("totalLiabilities")
 
-        # 진입 조건 강화: total_debt와 total_equity 모두 유효해야 계산 진행
         if (
             total_debt is None
             or total_equity is None
@@ -358,6 +365,8 @@ class StockCalculator:
         except (ValueError, TypeError, ZeroDivisionError) as e:
             logger.warning(f"[Calculation] 부채비율 계산 실패: {e}")
             return None
+
+
 
     def calculate_roe_without_stock(self, info: Dict) -> Optional[float]:
         """
