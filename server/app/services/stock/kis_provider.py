@@ -85,9 +85,6 @@ class KisStockProvider(BaseStockProvider):
         # ROE 방어 로직 (4단계)
         roe = self._defense_engine.get_roe_with_defense(stock_code, kis_data, current_price)
 
-        # 배당수익률 방어 로직 (4단계)
-        dividend_yield = self._defense_engine.get_dividend_yield_with_defense(stock_code, kis_data, current_price)
-
         # 목표가 방어 로직 (2단계)
         target_mean_price = self._defense_engine.get_target_price_with_defense(stock_code, kis_data)
 
@@ -101,7 +98,6 @@ class KisStockProvider(BaseStockProvider):
             stock_code=stock_code,
             ticker=ticker,
             roe=roe,
-            dividend_yield=dividend_yield,
             target_mean_price=target_mean_price
         )
 

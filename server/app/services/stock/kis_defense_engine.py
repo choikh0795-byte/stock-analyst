@@ -1,7 +1,7 @@
 """
 KIS API 데이터 방어 로직 전담 클래스
 
-ROE, 배당수익률, 목표가 등 실패 가능성이 높은 데이터를 'n차 단계'에 걸쳐 가져오는 로직을 관리.
+ROE, 목표가 등 실패 가능성이 높은 데이터를 'n차 단계'에 걸쳐 가져오는 로직을 관리.
 Strategy Pattern을 적용하여 각 방어 단계를 독립적인 전략으로 분리하고 실행 상태를 가시화합니다.
 """
 
@@ -10,11 +10,9 @@ from typing import Callable, Dict, List, Optional, Tuple
 
 from .kis_sector_mapping import (
     ROE_FIELD_CANDIDATES,
-    DIVIDEND_YIELD_FIELD_CANDIDATES,
     TARGET_PRICE_FIELD_CANDIDATES,
     NET_INCOME_FIELD_CANDIDATES,
     EQUITY_FIELD_CANDIDATES,
-    DPS_FIELD_CANDIDATES,
 )
 
 logger = logging.getLogger(__name__)
@@ -51,7 +49,7 @@ class KisDefenseEngine:
     KIS API 데이터 방어 로직 엔진
 
     역할:
-    - ROE, 배당수익률, 목표가 등 n차 방어 로직 관리
+    - ROE, 목표가 등 n차 방어 로직 관리
     - Strategy Pattern으로 각 단계를 독립적으로 실행
     - 실행 상태를 [Defense][Metric] Step N -> Result 형식으로 로깅
     - 최종 Summary 정보 제공
@@ -273,176 +271,6 @@ class KisDefenseEngine:
 
         logger.debug(f"[Defense][ROE][Step4] 재무 데이터 불완전 (당기순이익: {net_income}, 자본총계: {total_equity})")
         return None
-
-    def get_dividend_yield_with_defense(
-        self,
-        stock_code: str,
-        kis_data: Dict,
-        current_price: Optional[float]
-    ) -> Optional[float]:
-        """
-        배당수익률을 4단계 방어 로직으로 가져옵니다.
-
-        1차 방어: lst_yr_div_am 필드로 직접 계산 (최우선 순위)
-        2차 방어: 기본 조회 API에서 배당수익률 필드 직접 확인 (pdy, dvyd 등)
-        3차 방어: 기본 조회 API에서 기타 DPS 필드 추출하여 계산 (dps / 현재가) * 100
-        4차 방어: 배당 없음으로 간주 (0.0 반환, 실패 원인 로깅)
-
-        Args:
-            stock_code: 종목코드
-            kis_data: 기본 조회 API 응답 데이터
-            current_price: 현재가
-
-        Returns:
-            Optional[float]: 배당수익률 (% 단위) 또는 0.0
-        """
-        logger.info(f"[Dividend-Process] 배당수익률 계산 시작: {stock_code}, 현재가={current_price}")
-
-        # 방어 전략 정의 (순서 변경: lst_yr_div_am 최우선 순위)
-        strategies = [
-            ("lst_yr_div_am Direct Calculation", lambda: self._dividend_step1_lst_yr_div_am_calc(kis_data, current_price)),
-            ("Field Check (pdy, dvyd)", lambda: self._dividend_step2_field_check(kis_data)),
-            ("Other DPS Calculation", lambda: self._dividend_step3_dps_from_kis_data(kis_data, current_price)),
-            ("Default Zero", lambda: self._dividend_step4_default(kis_data, current_price)),
-        ]
-
-        # allow_zero=True: 배당수익률 0.0도 유효한 값으로 처리
-        result = self._execute_defense_strategies("Dividend Yield", strategies, allow_zero=True)
-        # 배당수익률은 최소 0.0 반환 (None 대신)
-        final_result = result if result is not None else 0.0
-        logger.info(f"[Dividend-Process] 배당수익률 계산 완료: {stock_code} -> {final_result}%")
-        return final_result
-
-    def _dividend_step1_lst_yr_div_am_calc(self, kis_data: Dict, current_price: Optional[float]) -> Optional[float]:
-        """
-        1차 방어: lst_yr_div_am 필드로 직접 계산 (최우선 순위)
-        공식: 배당수익률 = (lst_yr_div_am / stck_prpr) * 100
-        """
-        if not current_price or current_price <= 0:
-            logger.debug(f"[Dividend-Calc][Step1] 현재가 없음: {current_price}")
-            return None
-
-        # lst_yr_div_am 필드 확인
-        if "lst_yr_div_am" not in kis_data:
-            logger.debug(f"[Dividend-Calc][Step1] lst_yr_div_am 필드 없음")
-            return None
-
-        try:
-            raw_dps = kis_data["lst_yr_div_am"]
-            logger.info(f"[Dividend-Calc] Raw_DPS(lst_yr_div_am): {raw_dps}, Current_Price: {current_price}")
-
-            dps = float(raw_dps)
-            if dps and dps > 0:
-                dividend_yield = (dps / current_price) * 100
-                logger.info(f"[Dividend-Calc][Step1] Success: lst_yr_div_am={dps}, Price={current_price} -> Yield={dividend_yield:.2f}%")
-                return round(dividend_yield, 2)
-            elif dps == 0:
-                # 배당금이 0인 경우 (배당 없음)
-                logger.info(f"[Dividend-Calc][Step1] lst_yr_div_am=0 (배당 없음) -> Yield=0.0%")
-                return 0.0
-        except (ValueError, TypeError) as e:
-            logger.debug(f"[Dividend-Calc][Step1] lst_yr_div_am 변환 실패: {e}")
-            return None
-
-        return None
-
-    def _dividend_step2_field_check(self, kis_data: Dict) -> Optional[float]:
-        """
-        2차 방어: 기본 조회 API에서 배당수익률 필드 직접 확인 (pdy, dvyd 등)
-        """
-        logger.debug(f"[Dividend-Calc][Step2] kis_data 필드 목록: {list(kis_data.keys())[:20]}")
-
-        for field in DIVIDEND_YIELD_FIELD_CANDIDATES:
-            if field in kis_data:
-                try:
-                    raw_value = kis_data[field]
-                    logger.debug(f"[Dividend-Calc][Step2] 필드 '{field}' 발견: 원본값={raw_value}, 타입={type(raw_value)}")
-                    div_yield = float(raw_value)
-                    if div_yield is not None:  # 0.0도 허용
-                        logger.info(f"[Dividend-Calc][Step2] Success: Raw {field}={raw_value} -> {div_yield}%")
-                        return div_yield
-                except (ValueError, TypeError) as e:
-                    logger.debug(f"[Dividend-Calc][Step2] 필드 '{field}' 변환 실패: {e}")
-                    continue
-
-        logger.debug(f"[Dividend-Calc][Step2] 배당수익률 필드 없음. 검색 대상: {DIVIDEND_YIELD_FIELD_CANDIDATES}")
-        return None
-
-    def _dividend_step3_dps_from_kis_data(self, kis_data: Dict, current_price: Optional[float]) -> Optional[float]:
-        """
-        3차 방어: 기본 조회 API 응답(kis_data)에서 기타 DPS 필드 추출하여 계산 (lst_yr_div_am 제외)
-        공식: 배당수익률 = (DPS / 현재가) * 100
-        """
-        if not current_price or current_price <= 0:
-            logger.debug(f"[Dividend-Calc][Step3] 현재가 없음: {current_price}")
-            return None
-
-        logger.debug(f"[Dividend-Calc][Step3] 기타 DPS 필드 검색 시작. 현재가={current_price}")
-
-        dps = None
-        found_field = None
-        # lst_yr_div_am은 Step 1에서 이미 처리했으므로 제외
-        other_dps_fields = [f for f in DPS_FIELD_CANDIDATES if f != "lst_yr_div_am"]
-
-        for field in other_dps_fields:
-            if field in kis_data:
-                try:
-                    raw_value = kis_data[field]
-                    logger.debug(f"[Dividend-Calc][Step3] 필드 '{field}' 발견: 원본값={raw_value}, 타입={type(raw_value)}")
-                    dps = float(raw_value)
-                    if dps and dps > 0:
-                        found_field = field
-                        logger.debug(f"[Dividend-Calc][Step3] DPS 추출 성공: {field}={dps}")
-                        break
-                except (ValueError, TypeError) as e:
-                    logger.debug(f"[Dividend-Calc][Step3] 필드 '{field}' 변환 실패: {e}")
-                    continue
-
-        if dps and dps > 0:
-            dividend_yield = (dps / current_price) * 100
-            logger.info(f"[Dividend-Calc][Step3] Success: DPS={dps} (필드={found_field}), Price={current_price} -> Calc Yield: {dividend_yield:.2f}%")
-            return round(dividend_yield, 2)
-
-        logger.debug(f"[Dividend-Calc][Step3] 기타 DPS 필드 없음. 검색 대상: {other_dps_fields}")
-        return None
-
-    def _dividend_step4_default(self, kis_data: Dict, current_price: Optional[float]) -> float:
-        """
-        4차 방어: 배당 없음으로 간주 (0.0 반환, 실패 원인 로깅)
-        """
-        # 실패 원인 분석 및 로깅
-        failure_reasons = []
-
-        if not current_price or current_price <= 0:
-            failure_reasons.append(f"현재가 없음 (current_price={current_price})")
-
-        # lst_yr_div_am 확인
-        if "lst_yr_div_am" not in kis_data:
-            failure_reasons.append("lst_yr_div_am 필드 없음")
-        else:
-            failure_reasons.append(f"lst_yr_div_am 필드 값: {kis_data.get('lst_yr_div_am')}")
-
-        # 배당수익률 필드 확인
-        div_yield_fields_found = [f for f in DIVIDEND_YIELD_FIELD_CANDIDATES if f in kis_data]
-        if div_yield_fields_found:
-            failure_reasons.append(f"배당수익률 필드 있지만 값 없음: {div_yield_fields_found}")
-        else:
-            failure_reasons.append("배당수익률 필드 없음")
-
-        # 기타 DPS 필드 확인
-        other_dps_fields = [f for f in DPS_FIELD_CANDIDATES if f != "lst_yr_div_am"]
-        dps_fields_found = [f for f in other_dps_fields if f in kis_data]
-        if dps_fields_found:
-            failure_reasons.append(f"기타 DPS 필드 있지만 값 없음: {dps_fields_found}")
-        else:
-            failure_reasons.append("기타 DPS 필드 없음")
-
-        logger.warning(
-            f"[Dividend-Calc][Step4] 모든 데이터 소스 실패 -> 기본값 0.0 반환 (배당 없음)\n"
-            f"[Dividend-Calc][Step4] 실패 원인:\n" +
-            "\n".join(f"  - {reason}" for reason in failure_reasons)
-        )
-        return 0.0
 
     def get_target_price_with_defense(
         self,
