@@ -10,28 +10,68 @@ class AIService:
     """
     OpenAI를 사용하여 주식 분석을 수행하는 서비스 클래스
     """
-    
+
     def __init__(self, api_key: str, model: str = "gpt-4o-mini"):
         """
         AIService 초기화
-        
+
         Args:
             api_key: OpenAI API 키
             model: 사용할 OpenAI 모델명
         """
         self.client = openai.OpenAI(api_key=api_key)
         self.model = model
+
+    def _filter_payload(self, data: Dict) -> Dict:
+        """
+        OpenAI Payload에서 불필요한 값 제거하여 토큰 수 감소
+
+        제거 대상:
+        - None, null 값
+        - 0 (숫자)
+        - "정보 없음", "정보없음", "N/A", "" (문자열)
+
+        Args:
+            data: 원본 딕셔너리
+
+        Returns:
+            Dict: 필터링된 딕셔너리
+        """
+        filtered = {}
+
+        for key, value in data.items():
+            # None 값 제거
+            if value is None:
+                continue
+
+            # 문자열 값 필터링
+            if isinstance(value, str):
+                # 공백 제거 후 비교
+                value_stripped = value.strip()
+                # "정보 없음", "정보없음", "N/A", 빈 문자열 제거
+                if value_stripped in ["", "정보 없음", "정보없음", "N/A", "None", "null"]:
+                    continue
+
+            # 숫자 0 제거 (score는 유지)
+            if isinstance(value, (int, float)) and value == 0 and key != "score":
+                continue
+
+            # 유효한 값만 추가
+            filtered[key] = value
+
+        logger.debug(f"[AIService] Payload 필터링: {len(data)} -> {len(filtered)} 필드 (감소: {len(data) - len(filtered)})")
+        return filtered
     
     def analyze_stock(
-        self, 
+        self,
         stock_data: Dict
     ) -> Optional[Dict]:
         """
         주식 데이터를 분석하여 AI 분석 결과를 반환합니다.
-        
+
         Args:
             stock_data: 주식 정보 딕셔너리
-            
+
         Returns:
             Optional[Dict]: AI 분석 결과 딕셔너리 (실패 시 None)
         """
@@ -39,7 +79,10 @@ class AIService:
             logger.warning("[AIService] stock_data가 비어있습니다.")
             return None
 
-        system_prompt, user_prompt = self._build_analysis_prompts(stock_data)
+        # Payload 필터링 (토큰 수 감소)
+        filtered_stock_data = self._filter_payload(stock_data)
+
+        system_prompt, user_prompt = self._build_analysis_prompts(filtered_stock_data)
 
         try:
             response = self.client.chat.completions.create(
