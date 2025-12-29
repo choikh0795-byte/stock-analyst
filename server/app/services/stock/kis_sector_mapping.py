@@ -139,8 +139,8 @@ EQUITY_FIELD_CANDIDATES = [
     "eqty_tot_amt", "eqty", "eqty_amt"
 ]
 
-# 주당배당금(DPS) 필드명 후보
-DPS_FIELD_CANDIDATES = ["dps", "DPS", "dividend_per_share", "주당배당금", "stck_dvdn_amt", "stck_dvdn"]
+# 주당배당금(DPS) 필드명 후보 (우선순위: lst_yr_div_am -> dps -> ...)
+DPS_FIELD_CANDIDATES = ["lst_yr_div_am", "dps", "DPS", "dividend_per_share", "주당배당금", "stck_dvdn_amt", "stck_dvdn"]
 
 # 섹터 필드명 후보
 SECTOR_FIELD_CANDIDATES = [

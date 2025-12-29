@@ -210,7 +210,10 @@ class KisApiClient:
 
             result = response.json()
 
-            logger.debug(f"[KisApiClient] 주식 정보 응답: {result}")
+            # API 응답 원본의 첫 100자를 DEBUG 로그로 기록
+            response_preview = str(result)[:100]
+            logger.debug(f"[KisApiClient] API 응답 원본 (첫 100자): {response_preview}...")
+            logger.debug(f"[KisApiClient] 주식 정보 응답 전체: {result}")
 
             # 응답 구조: {"output": {...}, "rt_cd": "0", ...}
             if result.get("rt_cd") == "0":
