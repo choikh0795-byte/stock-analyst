@@ -47,6 +47,11 @@ class KisStockProvider(BaseStockProvider):
         """
         KIS API를 통해 주식 정보를 가져와 표준화된 딕셔너리로 반환합니다.
 
+        성능 최적화 (v2):
+        - 방어 로직 완전 제거 (ROE, 목표가는 Yahoo에서 가져옴)
+        - KIS API 1회만 호출 (현재가 정보)
+        - 불필요한 계산 제거
+
         Args:
             ticker: 주식 티커 심볼 (예: "005930.KS")
 
@@ -62,43 +67,23 @@ class KisStockProvider(BaseStockProvider):
 
         logger.info(f"[KisStockProvider] 주식 정보 조회 시작: {ticker}")
 
-        # 1. 티커를 종목코드로 변환 (데이터 파싱 컴포넌트 사용)
+        # 1. 티커를 종목코드로 변환
         stock_code = self._data_parser.convert_ticker_to_stock_code(ticker)
         logger.debug(f"[KisStockProvider] 티커 변환: {ticker} -> {stock_code}")
 
-        # 2. 주식 현재가 정보 조회 (API 클라이언트 사용)
-        # FHKST01010100 API는 현재가, 재무정보(PER, PBR, EPS, DPS 등)를 모두 포함하므로 한 번만 호출
+        # 2. 주식 현재가 정보 조회 (1회만 호출)
+        # FHKST01010100 API: 현재가, PER, PBR, EPS 등 기본 지표 포함
         kis_data = self._api_client.get_stock_price_info(stock_code)
-        logger.debug(f"[KisStockProvider] 주식 현재가 및 재무정보 조회 완료")
+        logger.info(f"[KisStockProvider] KIS API 조회 완료 (1회 호출)")
 
-        # 3. 현재가 추출 (방어 로직에서 필요)
-        current_price = None
-        if "stck_prpr" in kis_data:
-            try:
-                current_price = float(kis_data["stck_prpr"])
-            except (ValueError, TypeError):
-                pass
-
-        # 4. n차 방어 로직 실행 (방어 엔진 사용)
-        logger.info(f"[KisStockProvider] 방어 로직 시작: {stock_code}")
-
-        # ROE 방어 로직 (4단계)
-        roe = self._defense_engine.get_roe_with_defense(stock_code, kis_data, current_price)
-
-        # 목표가 방어 로직 (2단계)
-        target_mean_price = self._defense_engine.get_target_price_with_defense(stock_code, kis_data)
-
-        # 방어 로직 Summary 출력
-        summary = self._defense_engine.get_defense_summary()
-        logger.info(f"[KisStockProvider] 방어 로직 완료: {summary}")
-
-        # 5. 표준화된 딕셔너리로 변환 (데이터 파싱 컴포넌트 사용)
+        # 3. 표준화된 딕셔너리로 변환
+        # ROE, 목표가는 None으로 전달 (Yahoo에서 병합 시 채워짐)
         result = self._data_parser.convert_kis_response_to_standard_format(
             kis_data=kis_data,
             stock_code=stock_code,
             ticker=ticker,
-            roe=roe,
-            target_mean_price=target_mean_price
+            roe=None,  # Yahoo에서 가져올 것
+            target_mean_price=None  # Yahoo에서 가져올 것
         )
 
         logger.info(f"[KisStockProvider] 주식 정보 조회 완료: {ticker}")

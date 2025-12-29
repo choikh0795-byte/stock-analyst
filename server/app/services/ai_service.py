@@ -32,8 +32,8 @@ class AIService:
         self.model = model
 
         # 성능 최적화 설정
-        self.temperature = 0.2  # 일관성↑, 속도↑
-        self.max_tokens = 800  # 응답 길이 제한
+        self.temperature = 0.6  # 자연스러운 톤 + 일관성 유지
+        self.max_tokens = 600  # 응답 길이 제한 (충분한 길이)
 
     def _filter_payload(self, data: Dict) -> Dict:
         """
@@ -173,12 +173,12 @@ class AIService:
     
     def _build_analysis_prompts(self, stock_data: Dict) -> Tuple[str, str]:
         """
-        AI 분석을 위한 시스템 프롬프트와 사용자 프롬프트를 생성합니다. (지표별 독립 분석)
+        AI 분석을 위한 시스템 프롬프트와 사용자 프롬프트를 생성합니다.
 
         최적화:
-        - AI 호출 1회 유지 (성능 최우선)
-        - 각 지표별 독립된 Context 블록 제공
-        - 지표 간 명확한 의미 차이 강조
+        - 토큰 50% 절감 (간소화된 프롬프트)
+        - 자연스러운 톤 (친근한 페르소나)
+        - 지표별 독립 분석 유지
 
         Args:
             stock_data: 주식 정보 딕셔너리
@@ -186,17 +186,17 @@ class AIService:
         Returns:
             Tuple[str, str]: (시스템 프롬프트, 사용자 프롬프트)
         """
-        # 시스템 프롬프트: 지표별 독립 분석 강조
-        system_prompt = """시니어 펀드매니저로서 투자 분석 제공.
-각 지표(PER, PBR, ROE, EPS, 부채비율, 목표가 괴리율)는 서로 다른 의미를 가지며, 각 지표의 고유한 관점에서 개별적으로 분석하라.
-섹터 기준 평가, 핵심 리스크 1개, 캐주얼 한국어(~해, ~야, ~임), 마침표 없음."""
+        # 시스템 프롬프트: 간결하고 친근한 톤
+        system_prompt = """너는 10년차 펀드매니저야. 친근하고 솔직한 톤으로 투자 분석을 제공해.
+각 지표는 서로 다른 관점이니 개별적으로 분석해줘.
+섹터 평균 고려하고, 주요 리스크 1개만 명시해.
+한국어 반말(~해, ~야, ~임) 사용하고 마침표 없이 작성해."""
 
-        # 사용자 프롬프트: 지표별 독립 Context 블록
-        sector = stock_data.get('sector', '정보 없음')
-        industry = stock_data.get('industry', '정보 없음')
+        # 데이터 추출
+        sector = stock_data.get('sector', '정보없음')
+        industry = stock_data.get('industry', '정보없음')
         backend_score = stock_data.get("score", 50.0)
 
-        # 지표값 추출
         per = stock_data.get('pe_ratio', 'N/A')
         pbr = stock_data.get('pb_ratio', 'N/A')
         roe = stock_data.get('roe', 'N/A')
@@ -204,47 +204,27 @@ class AIService:
         debt_ratio = stock_data.get('debt_ratio', 'N/A')
         target_mean = stock_data.get('target_mean_price', 'N/A')
         current_price = stock_data.get('current_price', 'N/A')
+        currency = stock_data.get('currency', '')
 
-        # 목표가 괴리율 계산
+        # 목표가 괴리율
         target_gap = stock_data.get('target_upside', 'N/A')
         if target_gap != 'N/A' and target_gap is not None:
             target_gap = f"{target_gap:.1f}%"
 
+        # 사용자 프롬프트: 간소화 (불필요한 구분선/설명 제거)
         user_prompt = f"""{stock_data.get('name', 'N/A')} ({stock_data.get('symbol', 'N/A')})
-현재가: {current_price}{stock_data.get('currency', '')} | 섹터: {sector} | 산업: {industry} | 점수: {backend_score}
+가격 {current_price}{currency} | 섹터 {sector} | 산업 {industry} | 점수 {backend_score}
 
-━━━ 지표별 독립 Context (각 지표는 서로 다른 관점) ━━━
+지표:
+PER {per}, PBR {pbr}, ROE {roe}%, EPS {eps}
+부채비율 {debt_ratio}%, 목표가 {target_mean} (괴리율 {target_gap})
 
-[PER - 밸류에이션 관점]
-값: {per} | 의미: 주가가 순이익 대비 몇 배인가 (저평가/고평가 판단)
-
-[PBR - 자산 대비 가치 관점]
-값: {pbr} | 의미: 주가가 순자산 대비 몇 배인가 (자산 가치 평가)
-
-[ROE - 자본 효율성 관점]
-값: {roe}% | 의미: 자본 대비 얼마나 이익을 내는가 (수익성)
-
-[EPS - 이익 창출력 관점]
-값: {eps} | 의미: 주당 순이익 (기업의 벌이)
-
-[부채비율 - 재무 안정성 관점]
-값: {debt_ratio} | 의미: 자본 대비 부채 비율 (재무 건전성)
-
-[목표가 괴리율 - 상승 여력 관점]
-현재가: {current_price} | 목표가: {target_mean} | 괴리율: {target_gap}
-
-━━━ JSON 출력 형식 ━━━
-- signal: 매수(≥70), 중립(50-69), 주의(<50)
-- one_line: 핵심 한줄
-- summary: [3개 포인트]
-- risk: 주요 리스크 1개
-- metric_insights (각 지표별 독립 분석, 서로 다른 문장):
-  * per: PER 지표만의 관점에서 분석
-  * pbr: PBR 지표만의 관점에서 분석
-  * roe: ROE 지표만의 관점에서 분석
-  * eps: EPS 지표만의 관점에서 분석
-  * debt_ratio: 부채비율만의 관점에서 분석
-  * target_gap: 목표가 괴리율만의 관점에서 분석"""
+분석 요구사항:
+1. signal: 매수(≥70), 중립(50-69), 주의(<50)
+2. one_line: 핵심 한줄 요약
+3. summary: 3개 포인트
+4. risk: 주요 리스크 1개
+5. metric_insights: 각 지표별 독립 분석 (PER, PBR, ROE, EPS, 부채비율, 목표가 괴리율)"""
 
         return system_prompt, user_prompt
 
