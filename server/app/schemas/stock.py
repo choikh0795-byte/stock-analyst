@@ -7,7 +7,7 @@ class StockInfo(BaseModel):
     name: str
     symbol: str
     current_price: float
-    previous_close: float
+    previous_close: Optional[float] = None
     market_cap: Optional[str] = None
     pe_ratio: Optional[float] = None
     pb_ratio: Optional[float] = None
