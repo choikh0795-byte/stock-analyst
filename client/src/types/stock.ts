@@ -39,6 +39,7 @@ export interface StockInfo {
   // 구버전 호환 필드 (yfinance 원본)
   return_on_equity?: number | null
   sector: string
+  industry?: string | null
   summary: string
   // 6가지 핵심 지표 (원본 숫자 값 - 계산용)
   fifty_two_week_low?: number | null
@@ -48,16 +49,12 @@ export interface StockInfo {
   peg_ratio?: number | null
   beta?: number | null
   dividend_yield?: number | null
-  // 지표별 AI 인사이트
+  // 지표별 AI 인사이트 (최적화된 카테고리 기반 구조)
   metric_insights?: {
-    pe_ratio?: string
-    pb_ratio?: string
-    return_on_equity?: string
-    roe?: string
-    dividend_yield?: string
-    beta?: string
-    eps?: string
-    target_mean_price?: string
+    valuation: string       // PER, PBR 종합 평가
+    profitability: string   // ROE, EPS 수익성 평가
+    dividend: string        // 배당 평가
+    volatility: string      // Beta, 목표가 변동성 해석
   } | null
 }
 
@@ -67,14 +64,12 @@ export interface AIAnalysis {
   one_line: string
   summary: string[]
   risk: string
-  metric_insights?: {
-    pe_ratio?: string
-    pb_ratio?: string
-    return_on_equity?: string
-    dividend_yield?: string
-    beta?: string
-    target_mean_price?: string
-  } | null
+  metric_insights: {
+    valuation: string       // PER, PBR 종합 평가
+    profitability: string   // ROE, EPS 수익성 평가
+    dividend: string        // 배당 평가
+    volatility: string      // Beta, 목표가 변동성 해석
+  }
 }
 
 export interface StockAnalysisRequest {
