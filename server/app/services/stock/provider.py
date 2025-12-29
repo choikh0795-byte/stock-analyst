@@ -1,6 +1,6 @@
 import logging
 import re
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 from .kis_master_service import KisMasterService
 from .kis_provider import KisStockProvider
@@ -166,32 +166,3 @@ class StockProvider:
             except Exception as e:
                 logger.error(f"[StockProvider] Yahoo Provider 실패: {ticker}, 오류: {e}")
                 raise
-
-    def get_news(self, ticker: str) -> List[str]:
-        """
-        주식 관련 뉴스 제목 리스트를 반환합니다.
-        
-        Args:
-            ticker: 주식 티커 심볼 (예: "005930.KS", "AAPL")
-            
-        Returns:
-            List[str]: 뉴스 제목 리스트 (최대 3개)
-        """
-        ticker_upper = ticker.upper()
-        is_korean = ticker_upper.endswith((".KS", ".KQ"))
-        
-        # 한국 주식인 경우 KIS Provider 사용 (뉴스가 없을 수 있음)
-        if is_korean:
-            try:
-                news = self._kis_provider.get_news(ticker)
-                # KIS Provider가 뉴스를 제공하지 않는 경우 Yahoo로 Fallback
-                if not news:
-                    logger.info(f"[StockProvider] KIS Provider 뉴스 없음, Yahoo Provider로 Fallback: {ticker}")
-                    news = self._yahoo_provider.get_news(ticker)
-                return news
-            except Exception as e:
-                logger.warning(f"[StockProvider] KIS Provider 뉴스 조회 실패, Yahoo Provider로 Fallback: {ticker}, 오류: {e}")
-                return self._yahoo_provider.get_news(ticker)
-        else:
-            # 미국 주식 등 기타 주식은 Yahoo Provider 사용
-            return self._yahoo_provider.get_news(ticker)

@@ -42,15 +42,3 @@ class BaseStockProvider(ABC):
         """
         pass
 
-    @abstractmethod
-    def get_news(self, ticker: str) -> List[str]:
-        """
-        주식 관련 뉴스 제목 리스트를 반환합니다.
-        
-        Args:
-            ticker: 주식 티커 심볼 (예: "005930.KS", "AAPL")
-            
-        Returns:
-            List[str]: 뉴스 제목 리스트 (최대 3개 권장)
-        """
-        pass

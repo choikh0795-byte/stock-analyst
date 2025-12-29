@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional, Tuple
 import openai
 import json
 import logging
@@ -24,15 +24,13 @@ class AIService:
     
     def analyze_stock(
         self, 
-        stock_data: Dict, 
-        news: List[str]
+        stock_data: Dict
     ) -> Optional[Dict]:
         """
         주식 데이터를 분석하여 AI 분석 결과를 반환합니다.
         
         Args:
             stock_data: 주식 정보 딕셔너리
-            news: 뉴스 헤드라인 리스트
             
         Returns:
             Optional[Dict]: AI 분석 결과 딕셔너리 (실패 시 None)
@@ -41,7 +39,7 @@ class AIService:
             logger.warning("[AIService] stock_data가 비어있습니다.")
             return None
 
-        system_prompt, user_prompt = self._build_analysis_prompts(stock_data, news)
+        system_prompt, user_prompt = self._build_analysis_prompts(stock_data)
 
         try:
             response = self.client.chat.completions.create(
@@ -74,13 +72,12 @@ class AIService:
             logger.error(f"[AIService] AI 분석 중 오류 발생: {e}")
             return None
     
-    def _build_analysis_prompts(self, stock_data: Dict, news: List[str]) -> Tuple[str, str]:
+    def _build_analysis_prompts(self, stock_data: Dict) -> Tuple[str, str]:
         """
         AI 분석을 위한 시스템 프롬프트와 사용자 프롬프트를 생성합니다.
         
         Args:
             stock_data: 주식 정보 딕셔너리
-            news: 뉴스 헤드라인 리스트
             
         Returns:
             Tuple[str, str]: (시스템 프롬프트, 사용자 프롬프트)
@@ -139,8 +136,6 @@ Your role is to provide insightful, sharp, and professional investment analysis.
 Output valid JSON only. Never add explanations outside the JSON structure."""
 
         # 사용자 프롬프트: 구체적인 데이터와 컨텍스트
-        news_text = ', '.join(news) if news else '없음'
-        
         # 시가총액 포맷팅 (market_cap은 문자열로 전달되므로 숫자로 변환)
         market_cap_str_value = stock_data.get('market_cap')
         market_cap_display = stock_data.get('market_cap_str', '정보 없음')
@@ -197,9 +192,6 @@ Output valid JSON only. Never add explanations outside the JSON structure."""
 
 [백엔드 계산 점수]
 - 종합 투자 점수: {backend_score}점 (가중치 기반 알고리즘으로 계산됨)
-
-[최근 뉴스 헤드라인]
-{news_text}
 
 [분석 요청사항]
 위 정보를 바탕으로 다음 JSON 포맷으로 응답해주세요. 각 지표별 인사이트는 반드시 섹터/산업 맥락을 고려하고, 잠재적 리스크를 언급해야 합니다.

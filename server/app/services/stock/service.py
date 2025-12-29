@@ -1,7 +1,7 @@
 import json
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional
 
 from sqlalchemy.orm import Session
 
@@ -49,7 +49,7 @@ class StockService:
     def search_ticker(self, query: str) -> str:
         return self.provider.search_ticker(query)
 
-    def get_stock_info(self, ticker: str, db: Session) -> Tuple[Dict, List[str]]:
+    def get_stock_info(self, ticker: str, db: Session) -> Dict:
         from .provider import StockProvider
         if not StockProvider._is_ticker_format(ticker):
             ticker = self.search_ticker(ticker)
@@ -64,7 +64,7 @@ class StockService:
             .first()
         )
         if cached_log:
-            return cached_log.analysis_json.get("stock_data", {}), cached_log.analysis_json.get("news", [])
+            return cached_log.analysis_json.get("stock_data", {})
 
         # Provider에서 표준화된 딕셔너리 직접 받기
         info = self.provider.get_stock_info(ticker)
@@ -275,28 +275,21 @@ class StockService:
         logger.info(
             f"[StockService] 반환: {data['name']} / PER:{pe_ratio_str} / PBR:{pb_ratio_str} / ROE:{roe_str} / EPS:{eps_str} / Score:{score}"
         )
-
-        # Provider의 get_news 메서드 사용
-        news_titles = self.provider.get_news(ticker)
         
         # 최종 JSON payload를 서버 콘솔에 출력
-        final_payload = {
-            "stock_data": data,
-            "news": news_titles
-        }
         print("\n" + "="*80)
         print(f"[StockService] 최종 JSON Payload (ticker: {ticker})")
         print("="*80)
         try:
-            print(json.dumps(final_payload, indent=2, ensure_ascii=False, default=str))
+            print(json.dumps(data, indent=2, ensure_ascii=False, default=str))
         except Exception as e:
             logger.warning(f"[StockService] JSON 직렬화 실패: {e}")
             print(f"JSON 직렬화 실패: {e}")
         print("="*80 + "\n")
         
-        self._save_to_db(db, ticker, data, news_titles)
+        self._save_to_db(db, ticker, data)
 
-        return data, news_titles
+        return data
 
     def _convert_to_calculator_format(self, info: Dict) -> Dict:
         """
@@ -397,9 +390,9 @@ class StockService:
         logger.warning("[EPS Calculation] 모든 단계 실패: EPS를 계산할 수 없습니다.")
         return None
 
-    def _save_to_db(self, db: Session, ticker: str, data: Dict, news: List[str]) -> None:
+    def _save_to_db(self, db: Session, ticker: str, data: Dict) -> None:
         try:
-            analysis_json = {"stock_data": data, "news": news}
+            analysis_json = {"stock_data": data}
             log = db.query(StockAnalysisLog).filter(StockAnalysisLog.ticker == ticker.upper()).first()
             if log:
                 log.price = data["current_price"]

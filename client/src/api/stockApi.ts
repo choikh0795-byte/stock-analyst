@@ -64,13 +64,12 @@ class StockApiClient {
   /**
    * 주식 정보 조회
    * @param ticker 주식 티커 심볼
-   * @returns 주식 정보와 뉴스
+   * @returns 주식 정보
    */
-  async getStockInfo(ticker: string): Promise<{ stock_data: StockInfo; news: string[] }> {
+  async getStockInfo(ticker: string): Promise<{ stock_data: StockInfo }> {
     try {
       const response = await this.axiosInstance.get<{
         stock_data: StockInfo
-        news: string[]
       }>(`/api/v1/stock/${ticker.toUpperCase()}`)
       return response.data
     } catch (error) {
@@ -86,7 +85,7 @@ class StockApiClient {
   /**
    * 주식 분석 (정보 + AI 분석)
    * @param request 분석 요청 데이터
-   * @returns 주식 정보, 뉴스, AI 분석 결과
+   * @returns 주식 정보, AI 분석 결과
    */
   async getStockAnalysis(
     request: StockAnalysisRequest

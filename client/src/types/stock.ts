@@ -83,7 +83,6 @@ export interface StockAnalysisRequest {
 
 export interface StockAnalysisResponse {
   stock_data: StockInfo
-  news: string[]
   ai_analysis: AIAnalysis | null
 }
 

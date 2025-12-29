@@ -981,7 +981,7 @@ class KisStockProvider(BaseStockProvider):
         
         return {
             "name": name,
-            "korean_name": korean_stock_name,  # 한글종목명 추가
+            "korean_name": korean_name,  # 한글종목명 추가
             "symbol": ticker,
             "current_price": current_price,
             "previous_close": previous_close,
@@ -1029,21 +1029,3 @@ class KisStockProvider(BaseStockProvider):
 
         # 표준화된 딕셔너리로 변환
         return self._convert_kis_response_to_standard_format(kis_data, stock_code, ticker)
-
-    def get_news(self, ticker: str) -> List[str]:
-        """
-        KIS API를 통해 주식 관련 뉴스 제목 리스트를 반환합니다.
-        
-        Note: KIS API에서 뉴스 정보를 제공하지 않는 경우 빈 리스트를 반환합니다.
-        대신 Yahoo Provider를 사용하거나 별도의 뉴스 API를 연동해야 합니다.
-        
-        Args:
-            ticker: 주식 티커 심볼 (예: "005930.KS")
-            
-        Returns:
-            List[str]: 뉴스 제목 리스트 (현재는 빈 리스트)
-        """
-        # KIS API는 뉴스 정보를 직접 제공하지 않음
-        # 필요시 별도의 뉴스 API를 연동하거나 Yahoo Provider의 get_news를 사용
-        logger.warning(f"[KisStockProvider] KIS API는 뉴스 정보를 제공하지 않습니다. 티커: {ticker}")
-        return []

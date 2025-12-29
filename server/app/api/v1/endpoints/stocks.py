@@ -70,13 +70,12 @@ async def get_stock(
         db: 데이터베이스 세션
         
     Returns:
-        Dict: 주식 정보와 뉴스
+        Dict: 주식 정보
     """
     try:
-        stock_data, news = stock_service.get_stock_info(ticker.upper(), db)
+        stock_data = stock_service.get_stock_info(ticker.upper(), db)
         return {
-            "stock_data": stock_data,
-            "news": news
+            "stock_data": stock_data
         }
     except ValueError as e:
         logger.error(f"[Stocks Router] ValueError: {e}")
@@ -103,13 +102,13 @@ async def analyze_stock(
         db: 데이터베이스 세션
         
     Returns:
-        StockAnalysisResponse: 주식 정보, 뉴스, AI 분석 결과
+        StockAnalysisResponse: 주식 정보, AI 분석 결과
     """
     try:
         ticker = request.ticker.upper()
         
         # 주식 정보 가져오기
-        stock_data, news = stock_service.get_stock_info(ticker, db)
+        stock_data = stock_service.get_stock_info(ticker, db)
         
         # market_cap 타입 검증 및 강제 변환 (스키마 호환성)
         if 'market_cap' in stock_data and stock_data['market_cap'] is not None:
@@ -122,7 +121,7 @@ async def analyze_stock(
                     stock_data['market_cap'] = None
         
         # AI 분석 수행
-        ai_analysis = ai_service.analyze_stock(stock_data, news)
+        ai_analysis = ai_service.analyze_stock(stock_data)
         
         # AI 분석 결과에서 metric_insights를 stock_data에 추가
         if ai_analysis and 'metric_insights' in ai_analysis:
@@ -130,7 +129,6 @@ async def analyze_stock(
         
         return StockAnalysisResponse(
             stock_data=StockInfo(**stock_data),
-            news=news,
             ai_analysis=ai_analysis
         )
     except ValueError as e:
@@ -164,10 +162,10 @@ async def analyze_stock_ai_only(
         ticker = request.ticker.upper()
         
         # 주식 정보 가져오기
-        stock_data, news = stock_service.get_stock_info(ticker, db)
+        stock_data = stock_service.get_stock_info(ticker, db)
         
         # AI 분석 수행
-        ai_analysis = ai_service.analyze_stock(stock_data, news)
+        ai_analysis = ai_service.analyze_stock(stock_data)
         
         if ai_analysis:
             return AIAnalysisResponse(**ai_analysis)

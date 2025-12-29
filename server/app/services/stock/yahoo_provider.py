@@ -284,24 +284,3 @@ class YahooStockProvider(BaseStockProvider):
             "currency": currency,
         }
 
-    def get_news(self, ticker: str) -> List[str]:
-        """
-        Yahoo Finance API를 통해 주식 관련 뉴스 제목 리스트를 반환합니다.
-        
-        Args:
-            ticker: 주식 티커 심볼 (예: "005930.KS", "AAPL")
-            
-        Returns:
-            List[str]: 뉴스 제목 리스트 (최대 3개)
-        """
-        titles = []
-        try:
-            stock = self._get_ticker(ticker)
-            news = stock.news
-            if news:
-                for n in news[:3]:
-                    if isinstance(n, dict) and "title" in n:
-                        titles.append(n["title"])
-        except Exception as e:
-            logger.warning(f"[YahooStockProvider] 뉴스 조회 실패: {e}")
-        return titles

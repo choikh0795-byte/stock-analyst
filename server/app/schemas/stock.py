@@ -96,7 +96,6 @@ class StockAnalysisRequest(BaseModel):
 class StockAnalysisResponse(BaseModel):
     """주식 분석 응답 스키마"""
     stock_data: StockInfo
-    news: List[str]
     ai_analysis: Optional[dict] = None
 
 
