@@ -326,34 +326,38 @@ class StockCalculator:
         total_equity = info.get("totalStockholderEquity") or info.get("totalEquity")
 
         # 자본총계가 없으면 자산 - 부채로 계산
-        if not total_equity or total_equity == 0:
+        if not total_equity or total_equity <= 0:
             total_assets = info.get("totalAssets", 0)
             total_liabilities = info.get("totalLiabilities", 0)
             if total_assets > 0 and total_liabilities >= 0:
                 total_equity = total_assets - total_liabilities
-                logger.info(
-                    f"[Calculation] 부채비율 계산: 자본총계 계산 (자산={total_assets}, 부채={total_liabilities}, 자본={total_equity})"
+                logger.debug(
+                    f"[Calculation] 부채비율: 자본총계 계산 (자산={total_assets}, 부채={total_liabilities}, 자본={total_equity})"
                 )
 
         # totalDebt가 없으면 totalLiabilities 사용
-        if not total_debt:
+        if not total_debt or total_debt <= 0:
             total_debt = info.get("totalLiabilities")
 
-        logger.info(f"[Calculation] 부채비율 계산 시도: 총부채={total_debt}, 총자본={total_equity}")
-
-        if total_debt is not None and total_equity is not None and total_equity > 0:
-            try:
-                debt_ratio = (float(total_debt) / float(total_equity)) * 100
-                logger.info(f"[Calculation] 부채비율 계산 성공: {debt_ratio:.2f}%")
-                return round(debt_ratio, 2)
-            except (ValueError, TypeError, ZeroDivisionError) as e:
-                logger.warning(f"[Calculation] 부채비율 계산 실패: {e}")
-        else:
+        # 진입 조건 강화: total_debt와 total_equity 모두 유효해야 계산 진행
+        if (
+            total_debt is None
+            or total_equity is None
+            or total_debt <= 0
+            or total_equity <= 0
+        ):
             logger.warning(
-                f"[Calculation] 부채비율 계산 불가: 총부채={total_debt}, 총자본={total_equity} (0 이하 값 또는 None)"
+                f"[Calculation] 부채비율 계산 불가: 총부채={total_debt}, 총자본={total_equity}"
             )
+            return None
 
-        return None
+        try:
+            debt_ratio = (float(total_debt) / float(total_equity)) * 100
+            logger.info(f"[Calculation] 부채비율 계산 성공: {debt_ratio:.2f}%")
+            return round(debt_ratio, 2)
+        except (ValueError, TypeError, ZeroDivisionError) as e:
+            logger.warning(f"[Calculation] 부채비율 계산 실패: {e}")
+            return None
 
     def calculate_roe_without_stock(self, info: Dict) -> Optional[float]:
         """

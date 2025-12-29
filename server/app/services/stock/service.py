@@ -96,9 +96,8 @@ class StockService:
         if eps is None:
             eps = self._calculate_eps_from_info(info, current_price)
 
-        # 부채비율 계산
-        calc_info = self._convert_to_calculator_format(info)
-        debt_ratio = self.calculator.calculate_debt_ratio(calc_info)
+        # 부채비율: Provider가 이미 계산한 값 사용 (중복 계산 방지)
+        debt_ratio = info.get("debt_ratio")
 
         previous_close = info.get("previous_close")
         fifty_two_week_low = info.get("fifty_two_week_low")
