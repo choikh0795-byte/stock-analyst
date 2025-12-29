@@ -6,7 +6,7 @@ export interface StockInfo {
   name: string
   symbol: string
   current_price: number
-  previous_close: number
+  previous_close: number | null
   // 백엔드에서 포맷팅된 가격 문자열 (완성된 문자열)
   current_price_str?: string
   previous_close_str?: string

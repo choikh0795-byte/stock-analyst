@@ -7,7 +7,7 @@ class StockInfo(BaseModel):
     name: str
     symbol: str
     current_price: float
-    previous_close: float
+    previous_close: Optional[float] = None
     market_cap: Optional[str] = None
     pe_ratio: Optional[float] = None
     pb_ratio: Optional[float] = None
@@ -60,7 +60,7 @@ class StockInfo(BaseModel):
                 "name": "Apple Inc.",
                 "symbol": "AAPL",
                 "current_price": 175.50,
-                "previous_close": 174.50,
+                "previous_close": 174.50,  # Optional: None if not available
                 "market_cap": "2800000000000",
                 "pe_ratio": 30.5,
                 "pb_ratio": 1.5,
