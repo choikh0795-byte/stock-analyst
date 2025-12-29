@@ -243,27 +243,7 @@ class YahooStockProvider(BaseStockProvider):
                 roe_percent = float(roe) * 100
             except (ValueError, TypeError):
                 pass
-        
-        # 배당수익률 계산 (% 단위로)
-        dividend_yield = None
-        raw_dividend_yield = info.get("dividendYield")
-        if raw_dividend_yield is not None:
-            try:
-                dividend_yield = float(raw_dividend_yield)
-                if dividend_yield < 1.0:
-                    dividend_yield = dividend_yield * 100
-            except (ValueError, TypeError):
-                pass
-        
-        # 배당률(dividendRate)과 현재가로 계산
-        if dividend_yield is None:
-            dividend_rate = info.get("dividendRate")
-            if dividend_rate is not None and current_price and current_price > 0:
-                try:
-                    dividend_yield = (float(dividend_rate) / current_price) * 100
-                except (ValueError, TypeError):
-                    pass
-        
+
         return {
             "name": info.get("shortName") or info.get("longName") or ticker,
             "symbol": ticker,
@@ -273,7 +253,6 @@ class YahooStockProvider(BaseStockProvider):
             "pe_ratio": info.get("trailingPE") or info.get("forwardPE"),
             "pb_ratio": info.get("priceToBook"),
             "eps": eps,
-            "dividend_yield": dividend_yield,
             "roe": roe_percent,
             "fifty_two_week_low": info.get("fiftyTwoWeekLow"),
             "fifty_two_week_high": info.get("fiftyTwoWeekHigh"),

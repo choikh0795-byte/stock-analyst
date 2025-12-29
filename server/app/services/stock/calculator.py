@@ -210,56 +210,6 @@ class StockCalculator:
 
         return pb_ratio
 
-    def calculate_dividend_yield(self, info: Dict, fdr_data: Dict, is_korean: bool) -> float:
-        # is_korean is kept for interface compatibility
-        _ = is_korean
-
-        dividend_rate = info.get("dividendRate")
-        current_price = info.get("currentPrice")
-        raw_dividend_yield = info.get("dividendYield")
-        fdr_dividend_yield = fdr_data.get("dividend_yield")
-
-        # 1) 직접 계산: dividendRate / currentPrice
-        try:
-            if dividend_rate is not None and current_price is not None:
-                rate_value = float(dividend_rate)
-                price_value = float(current_price)
-
-                if rate_value > 0 and price_value > 0:
-                    manual_dividend_yield = (rate_value / price_value) * 100
-                    logger.info(
-                        f"[Calculation] 배당률 1차(직접 계산) 성공: dividendRate={rate_value}, "
-                        f"currentPrice={price_value}, yield={manual_dividend_yield}"
-                    )
-                    return float(manual_dividend_yield)
-        except Exception as e:
-            logger.warning(f"[DEBUG] 배당률 직접 계산 실패: {e}")
-
-        # 2) yfinance dividendYield 필드 활용 (단위 보정 포함)
-        try:
-            if raw_dividend_yield is not None:
-                dividend_yield = float(raw_dividend_yield)
-                if dividend_yield < 1.0:
-                    dividend_yield = dividend_yield * 100
-
-                logger.info(
-                    f"[Calculation] 배당률 2차(yfinance dividendYield) 사용: raw={raw_dividend_yield}, "
-                    f"normalized={dividend_yield}"
-                )
-                return float(dividend_yield)
-        except Exception as e:
-            logger.warning(f"[DEBUG] 배당률 yfinance 보정 실패: {e}")
-
-        # 3) FDR 캐시 fallback
-        try:
-            if fdr_dividend_yield is not None:
-                dividend_yield = float(fdr_dividend_yield)
-                logger.info(f"[Calculation] 배당률 3차(FDR) 사용: {dividend_yield}")
-                return dividend_yield
-        except Exception as e:
-            logger.warning(f"[DEBUG] 배당률 FDR 변환 실패: {e}")
-
-        return 0.0
 
     def calculate_roe(self, info: Dict, stock) -> Optional[float]:
         return_on_equity = info.get("returnOnEquity")
@@ -359,6 +309,51 @@ class StockCalculator:
                 logger.warning(f"[Calculation] ROE 3차 계산 실패: {str(e)}")
 
         return roe
+
+    def calculate_debt_ratio(self, info: Dict) -> Optional[float]:
+        """
+        부채비율 계산
+
+        부채비율 = (총부채 / 총자본) * 100
+
+        Args:
+            info: yfinance info 딕셔너리
+
+        Returns:
+            Optional[float]: 부채비율 (%) 또는 None
+        """
+        total_debt = info.get("totalDebt")
+        total_equity = info.get("totalStockholderEquity") or info.get("totalEquity")
+
+        # 자본총계가 없으면 자산 - 부채로 계산
+        if not total_equity or total_equity == 0:
+            total_assets = info.get("totalAssets", 0)
+            total_liabilities = info.get("totalLiabilities", 0)
+            if total_assets > 0 and total_liabilities >= 0:
+                total_equity = total_assets - total_liabilities
+                logger.info(
+                    f"[Calculation] 부채비율 계산: 자본총계 계산 (자산={total_assets}, 부채={total_liabilities}, 자본={total_equity})"
+                )
+
+        # totalDebt가 없으면 totalLiabilities 사용
+        if not total_debt:
+            total_debt = info.get("totalLiabilities")
+
+        logger.info(f"[Calculation] 부채비율 계산 시도: 총부채={total_debt}, 총자본={total_equity}")
+
+        if total_debt is not None and total_equity is not None and total_equity > 0:
+            try:
+                debt_ratio = (float(total_debt) / float(total_equity)) * 100
+                logger.info(f"[Calculation] 부채비율 계산 성공: {debt_ratio:.2f}%")
+                return round(debt_ratio, 2)
+            except (ValueError, TypeError, ZeroDivisionError) as e:
+                logger.warning(f"[Calculation] 부채비율 계산 실패: {e}")
+        else:
+            logger.warning(
+                f"[Calculation] 부채비율 계산 불가: 총부채={total_debt}, 총자본={total_equity} (0 이하 값 또는 None)"
+            )
+
+        return None
 
     def calculate_roe_without_stock(self, info: Dict) -> Optional[float]:
         """

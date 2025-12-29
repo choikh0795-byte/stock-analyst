@@ -85,12 +85,7 @@ class StockService:
         if not pb_ratio:
             calc_info = self._convert_to_calculator_format(info)
             pb_ratio = self.calculator.calculate_pb_ratio_without_stock(calc_info, current_price, fdr_data, market_cap)
-        
-        dividend_yield = info.get("dividend_yield")
-        if not dividend_yield:
-            calc_info = self._convert_to_calculator_format(info)
-            dividend_yield = self.calculator.calculate_dividend_yield(calc_info, fdr_data, is_korean)
-        
+
         roe = info.get("roe")
         if not roe:
             calc_info = self._convert_to_calculator_format(info)
@@ -101,16 +96,34 @@ class StockService:
         if eps is None:
             eps = self._calculate_eps_from_info(info, current_price)
 
-        previous_close = info.get("previous_close") or current_price
+        # 부채비율 계산
+        calc_info = self._convert_to_calculator_format(info)
+        debt_ratio = self.calculator.calculate_debt_ratio(calc_info)
+
+        previous_close = info.get("previous_close")
         fifty_two_week_low = info.get("fifty_two_week_low")
         fifty_two_week_high = info.get("fifty_two_week_high")
         target_mean_price = info.get("target_mean_price")
         beta = info.get("beta")
 
-        # 가격 변동 계산
-        change_value = current_price - previous_close if previous_close else 0.0
-        change_percentage = (change_value / previous_close * 100) if previous_close and previous_close > 0 else 0.0
-        change_status = self.formatter.get_change_status(current_price, previous_close)
+        # 가격 변동 계산 (previous_close가 유효할 때만 계산)
+        change_value = None
+        change_percentage = None
+        change_status = "NEUTRAL"
+
+        if previous_close is not None and previous_close > 0:
+            change_value = current_price - previous_close
+            change_percentage = (change_value / previous_close) * 100
+            change_status = self.formatter.get_change_status(current_price, previous_close)
+            logger.info(
+                f"[StockService] 등락률 계산: 현재가={current_price}, 전일종가={previous_close}, "
+                f"등락액={change_value}, 등락률={change_percentage:.2f}%"
+            )
+        else:
+            logger.warning(
+                f"[StockService] 등락률 계산 불가: 현재가={current_price}, 전일종가={previous_close} "
+                f"(전일종가가 None 또는 0 이하)"
+            )
 
         # 목표가 괴리율 계산
         target_upside = None
@@ -133,7 +146,7 @@ class StockService:
         market_cap_str = self.formatter.format_market_cap(market_cap)
         roe_str = self.formatter.format_roe(roe)
         eps_str = self.formatter.format_eps(eps, is_korean)
-        dividend_yield_str = self.formatter.format_dividend(dividend_yield, is_korean)
+        debt_ratio_str = self.formatter.format_debt_ratio(debt_ratio)
         pe_ratio_str = self.formatter.format_pe_ratio(pe_ratio, is_korean)
         pb_ratio_str = self.formatter.format_pb_ratio(pb_ratio, is_korean)
         beta_str = self.formatter.format_beta(beta)
@@ -164,7 +177,6 @@ class StockService:
             "previous_close": previous_close,
             "pe_ratio": pe_ratio,
             "pb_ratio": pb_ratio,
-            "dividend_yield": dividend_yield,
             "beta": beta,
             # 포맷팅된 문자열 필드
             "current_price_str": current_price_str,
@@ -176,7 +188,7 @@ class StockService:
             "market_cap": market_cap_str_value,  # 스키마 호환성을 위해 문자열로 변환
             "roe_str": roe_str,
             "eps_str": eps_str,
-            "dividend_yield_str": dividend_yield_str,
+            "debt_ratio_str": debt_ratio_str,
             "pe_ratio_str": pe_ratio_str,
             "pb_ratio_str": pb_ratio_str,
             "beta_str": beta_str,
@@ -199,6 +211,7 @@ class StockService:
             "target_mean_price": target_mean_price,
             "roe": roe,
             "eps": eps,
+            "debt_ratio": debt_ratio,
         }
 
         # market_cap 타입 최종 확인 및 강제 변환

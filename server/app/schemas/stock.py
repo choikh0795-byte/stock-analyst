@@ -11,11 +11,13 @@ class StockInfo(BaseModel):
     market_cap: Optional[str] = None
     pe_ratio: Optional[float] = None
     pb_ratio: Optional[float] = None
-    # ROE/EPS (백엔드 계산 결과)
+    # ROE/EPS/부채비율 (백엔드 계산 결과)
     roe: Optional[float] = None
     roe_str: Optional[str] = None
     eps: Optional[float] = None
     eps_str: Optional[str] = None
+    debt_ratio: Optional[float] = None
+    debt_ratio_str: Optional[str] = None
     # 구버전 호환 필드
     return_on_equity: Optional[float] = None
     sector: str
@@ -28,7 +30,6 @@ class StockInfo(BaseModel):
     number_of_analyst_opinions: Optional[int] = None
     peg_ratio: Optional[float] = None
     beta: Optional[float] = None
-    dividend_yield: Optional[float] = None
     # 지표별 AI 인사이트 (각 지표에 대한 한 문장 평가)
     metric_insights: Optional[Dict[str, str]] = None
     # 백엔드에서 포맷팅된 가격 문자열 (한국: "58,800원", 미국: "$145.20")
@@ -75,8 +76,7 @@ class StockInfo(BaseModel):
                 "target_mean_price": 190.00,
                 "number_of_analyst_opinions": 45,
                 "peg_ratio": 1.2,
-                "beta": 1.3,
-                "dividend_yield": 0.005
+                "beta": 1.3
             }
         }
 
@@ -100,11 +100,13 @@ class StockAnalysisResponse(BaseModel):
 
 
 class MetricInsights(BaseModel):
-    """지표 인사이트 - 카테고리별 요약"""
-    valuation: str  # PER, PBR 종합 평가
-    profitability: str  # ROE, EPS 수익성 요약
-    dividend: str  # 배당 평가
-    volatility: str  # Beta, 목표가 변동성 해석
+    """지표 인사이트 - 6개 지표별 독립 분석"""
+    per: str  # PER 지표 분석
+    pbr: str  # PBR 지표 분석
+    roe: str  # ROE 지표 분석
+    eps: str  # EPS 지표 분석
+    debt_ratio: str  # 부채비율 분석
+    target_gap: str  # 목표가 괴리율 분석
 
 
 class AIAnalysisResponse(BaseModel):
@@ -129,10 +131,12 @@ class AIAnalysisResponse(BaseModel):
                 ],
                 "risk": "시장 변동성과 경쟁 심화",
                 "metric_insights": {
-                    "valuation": "밸류에이션 적정 수준",
-                    "profitability": "수익성 우수",
-                    "dividend": "배당률 양호",
-                    "volatility": "변동성 보통"
+                    "per": "PER 30.5배는 업계 평균 대비 다소 높은 편",
+                    "pbr": "PBR 1.5배는 적정 수준",
+                    "roe": "ROE 18.5%는 우수한 자본 효율성",
+                    "eps": "EPS $5.40은 견조한 이익 창출력",
+                    "debt_ratio": "부채비율 45%로 안정적",
+                    "target_gap": "목표가 대비 8% 상승 여력"
                 }
             }
         }
