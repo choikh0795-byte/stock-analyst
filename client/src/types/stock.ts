@@ -31,11 +31,13 @@ export interface StockInfo {
   currency?: string
   pe_ratio?: number | null
   pb_ratio?: number | null
-  // 백엔드 계산된 ROE/EPS (신규)
+  // 백엔드 계산된 ROE/EPS/부채비율 (신규)
   roe?: number | null
   roe_str?: string | null
   eps?: number | null
   eps_str?: string | null
+  debt_ratio?: number | null
+  debt_ratio_str?: string | null
   // 구버전 호환 필드 (yfinance 원본)
   return_on_equity?: number | null
   sector: string
@@ -48,13 +50,14 @@ export interface StockInfo {
   number_of_analyst_opinions?: number | null
   peg_ratio?: number | null
   beta?: number | null
-  dividend_yield?: number | null
-  // 지표별 AI 인사이트 (최적화된 카테고리 기반 구조)
+  // 지표별 AI 인사이트 (6개 독립 지표)
   metric_insights?: {
-    valuation: string       // PER, PBR 종합 평가
-    profitability: string   // ROE, EPS 수익성 평가
-    dividend: string        // 배당 평가
-    volatility: string      // Beta, 목표가 변동성 해석
+    per: string             // PER 지표 분석
+    pbr: string             // PBR 지표 분석
+    roe: string             // ROE 지표 분석
+    eps: string             // EPS 지표 분석
+    debt_ratio: string      // 부채비율 분석
+    target_gap: string      // 목표가 괴리율 분석
   } | null
 }
 
@@ -65,10 +68,12 @@ export interface AIAnalysis {
   summary: string[]
   risk: string
   metric_insights: {
-    valuation: string       // PER, PBR 종합 평가
-    profitability: string   // ROE, EPS 수익성 평가
-    dividend: string        // 배당 평가
-    volatility: string      // Beta, 목표가 변동성 해석
+    per: string             // PER 지표 분석
+    pbr: string             // PBR 지표 분석
+    roe: string             // ROE 지표 분석
+    eps: string             // EPS 지표 분석
+    debt_ratio: string      // 부채비율 분석
+    target_gap: string      // 목표가 괴리율 분석
   }
 }
 

@@ -133,12 +133,14 @@ class AIService:
                                 "metric_insights": {
                                     "type": "object",
                                     "properties": {
-                                        "valuation": {"type": "string"},
-                                        "profitability": {"type": "string"},
-                                        "dividend": {"type": "string"},
-                                        "volatility": {"type": "string"}
+                                        "per": {"type": "string"},
+                                        "pbr": {"type": "string"},
+                                        "roe": {"type": "string"},
+                                        "eps": {"type": "string"},
+                                        "debt_ratio": {"type": "string"},
+                                        "target_gap": {"type": "string"}
                                     },
-                                    "required": ["valuation", "profitability", "dividend", "volatility"],
+                                    "required": ["per", "pbr", "roe", "eps", "debt_ratio", "target_gap"],
                                     "additionalProperties": False
                                 }
                             },
@@ -171,12 +173,12 @@ class AIService:
     
     def _build_analysis_prompts(self, stock_data: Dict) -> Tuple[str, str]:
         """
-        AI 분석을 위한 시스템 프롬프트와 사용자 프롬프트를 생성합니다. (최적화)
+        AI 분석을 위한 시스템 프롬프트와 사용자 프롬프트를 생성합니다. (지표별 독립 분석)
 
         최적화:
-        - system prompt 최소화 (핵심만 유지)
-        - user prompt JSON 스키마 간소화 (8개→4개 필드)
-        - 불필요한 설명 제거
+        - AI 호출 1회 유지 (성능 최우선)
+        - 각 지표별 독립된 Context 블록 제공
+        - 지표 간 명확한 의미 차이 강조
 
         Args:
             stock_data: 주식 정보 딕셔너리
@@ -184,38 +186,65 @@ class AIService:
         Returns:
             Tuple[str, str]: (시스템 프롬프트, 사용자 프롬프트)
         """
-        # 시스템 프롬프트: 극도로 간결화 (토큰↓)
+        # 시스템 프롬프트: 지표별 독립 분석 강조
         system_prompt = """시니어 펀드매니저로서 투자 분석 제공.
+각 지표(PER, PBR, ROE, EPS, 부채비율, 목표가 괴리율)는 서로 다른 의미를 가지며, 각 지표의 고유한 관점에서 개별적으로 분석하라.
 섹터 기준 평가, 핵심 리스크 1개, 캐주얼 한국어(~해, ~야, ~임), 마침표 없음."""
 
-        # 사용자 프롬프트: 데이터 중심, 간결화 (토큰↓)
+        # 사용자 프롬프트: 지표별 독립 Context 블록
         sector = stock_data.get('sector', '정보 없음')
         industry = stock_data.get('industry', '정보 없음')
         backend_score = stock_data.get("score", 50.0)
 
-        # 배당률 포맷팅
-        dividend_yield_value = stock_data.get("dividend_yield")
-        if isinstance(dividend_yield_value, (int, float)):
-            dividend_yield_display = f"{float(dividend_yield_value):.2f}%"
-        else:
-            dividend_yield_display = "N/A"
+        # 지표값 추출
+        per = stock_data.get('pe_ratio', 'N/A')
+        pbr = stock_data.get('pb_ratio', 'N/A')
+        roe = stock_data.get('roe', 'N/A')
+        eps = stock_data.get('eps', 'N/A')
+        debt_ratio = stock_data.get('debt_ratio', 'N/A')
+        target_mean = stock_data.get('target_mean_price', 'N/A')
+        current_price = stock_data.get('current_price', 'N/A')
+
+        # 목표가 괴리율 계산
+        target_gap = stock_data.get('target_upside', 'N/A')
+        if target_gap != 'N/A' and target_gap is not None:
+            target_gap = f"{target_gap:.1f}%"
 
         user_prompt = f"""{stock_data.get('name', 'N/A')} ({stock_data.get('symbol', 'N/A')})
-현재가: {stock_data.get('current_price', 'N/A')}{stock_data.get('currency', '')} | 섹터: {sector} | 산업: {industry}
-PER: {stock_data.get('pe_ratio', 'N/A')} | PBR: {stock_data.get('pb_ratio', 'N/A')} | ROE: {stock_data.get('roe', 'N/A')}%
-EPS: {stock_data.get('eps', 'N/A')} | 배당: {dividend_yield_display} | Beta: {stock_data.get('beta', 'N/A')}
-목표가: {stock_data.get('target_mean_price', 'N/A')} | 점수: {backend_score}
+현재가: {current_price}{stock_data.get('currency', '')} | 섹터: {sector} | 산업: {industry} | 점수: {backend_score}
 
-JSON:
+━━━ 지표별 독립 Context (각 지표는 서로 다른 관점) ━━━
+
+[PER - 밸류에이션 관점]
+값: {per} | 의미: 주가가 순이익 대비 몇 배인가 (저평가/고평가 판단)
+
+[PBR - 자산 대비 가치 관점]
+값: {pbr} | 의미: 주가가 순자산 대비 몇 배인가 (자산 가치 평가)
+
+[ROE - 자본 효율성 관점]
+값: {roe}% | 의미: 자본 대비 얼마나 이익을 내는가 (수익성)
+
+[EPS - 이익 창출력 관점]
+값: {eps} | 의미: 주당 순이익 (기업의 벌이)
+
+[부채비율 - 재무 안정성 관점]
+값: {debt_ratio} | 의미: 자본 대비 부채 비율 (재무 건전성)
+
+[목표가 괴리율 - 상승 여력 관점]
+현재가: {current_price} | 목표가: {target_mean} | 괴리율: {target_gap}
+
+━━━ JSON 출력 형식 ━━━
 - signal: 매수(≥70), 중립(50-69), 주의(<50)
 - one_line: 핵심 한줄
 - summary: [3개 포인트]
 - risk: 주요 리스크 1개
-- metric_insights:
-  * valuation: PER/PBR 종합평가
-  * profitability: ROE/EPS 수익성
-  * dividend: 배당 평가
-  * volatility: Beta/목표가 해석"""
+- metric_insights (각 지표별 독립 분석, 서로 다른 문장):
+  * per: PER 지표만의 관점에서 분석
+  * pbr: PBR 지표만의 관점에서 분석
+  * roe: ROE 지표만의 관점에서 분석
+  * eps: EPS 지표만의 관점에서 분석
+  * debt_ratio: 부채비율만의 관점에서 분석
+  * target_gap: 목표가 괴리율만의 관점에서 분석"""
 
         return system_prompt, user_prompt
 
