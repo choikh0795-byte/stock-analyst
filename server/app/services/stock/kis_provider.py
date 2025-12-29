@@ -67,16 +67,11 @@ class KisStockProvider(BaseStockProvider):
         logger.debug(f"[KisStockProvider] 티커 변환: {ticker} -> {stock_code}")
 
         # 2. 주식 현재가 정보 조회 (API 클라이언트 사용)
+        # FHKST01010100 API는 현재가, 재무정보(PER, PBR, EPS, DPS 등)를 모두 포함하므로 한 번만 호출
         kis_data = self._api_client.get_stock_price_info(stock_code)
-        logger.debug(f"[KisStockProvider] 주식 현재가 정보 조회 완료")
+        logger.debug(f"[KisStockProvider] 주식 현재가 및 재무정보 조회 완료")
 
-        # 3. 재무정보 조회 시도 (선택적, API 클라이언트 사용)
-        fundamental_data = self._api_client.get_stock_fundamental_info(stock_code)
-        if fundamental_data:
-            kis_data.update(fundamental_data)
-            logger.debug(f"[KisStockProvider] 재무정보 병합 완료")
-
-        # 4. 현재가 추출 (방어 로직에서 필요)
+        # 3. 현재가 추출 (방어 로직에서 필요)
         current_price = None
         if "stck_prpr" in kis_data:
             try:
@@ -84,23 +79,23 @@ class KisStockProvider(BaseStockProvider):
             except (ValueError, TypeError):
                 pass
 
-        # 5. n차 방어 로직 실행 (방어 엔진 사용)
+        # 4. n차 방어 로직 실행 (방어 엔진 사용)
         logger.info(f"[KisStockProvider] 방어 로직 시작: {stock_code}")
 
         # ROE 방어 로직 (4단계)
         roe = self._defense_engine.get_roe_with_defense(stock_code, kis_data, current_price)
 
-        # 배당수익률 방어 로직 (3단계)
+        # 배당수익률 방어 로직 (4단계)
         dividend_yield = self._defense_engine.get_dividend_yield_with_defense(stock_code, kis_data, current_price)
 
-        # 목표가 방어 로직 (3단계)
+        # 목표가 방어 로직 (2단계)
         target_mean_price = self._defense_engine.get_target_price_with_defense(stock_code, kis_data)
 
         # 방어 로직 Summary 출력
         summary = self._defense_engine.get_defense_summary()
         logger.info(f"[KisStockProvider] 방어 로직 완료: {summary}")
 
-        # 6. 표준화된 딕셔너리로 변환 (데이터 파싱 컴포넌트 사용)
+        # 5. 표준화된 딕셔너리로 변환 (데이터 파싱 컴포넌트 사용)
         result = self._data_parser.convert_kis_response_to_standard_format(
             kis_data=kis_data,
             stock_code=stock_code,
