@@ -9,6 +9,8 @@ from typing import Dict, List, Optional, Tuple
 import pandas as pd
 import requests
 
+from app.services.stock.naver_search_service import NaverStockSearchService
+
 logger = logging.getLogger(__name__)
 
 
@@ -103,12 +105,13 @@ class KisMasterService:
         '기준년월', '전일기준 시가총액 (억)', '그룹사 코드', '회사신용한도초과여부', '담보대출가능여부', '대주가능여부'
     ]
 
-    def __init__(self, cache_dir: Optional[str] = None):
+    def __init__(self, cache_dir: Optional[str] = None, enable_naver_fallback: bool = True):
         """
         KisMasterService 초기화
-        
+
         Args:
             cache_dir: 마스터 파일을 캐시할 디렉토리 경로 (None이면 임시 디렉토리 사용)
+            enable_naver_fallback: 네이버 검색 API 폴백 활성화 여부 (기본: True)
         """
         if cache_dir:
             self.cache_dir = Path(cache_dir)
@@ -117,15 +120,25 @@ class KisMasterService:
             import tempfile
             temp_base = Path(tempfile.gettempdir())
             self.cache_dir = temp_base / "kis_master"
-        
+
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # 메모리 캐시
         self._name_to_code: Dict[str, str] = {}  # {"삼성전자": "005930.KS", ...}
         self._code_to_detail: Dict[str, Dict] = {}  # {"005930.KS": {"name": "삼성전자", "sector_code": "...", "market": "KOSPI"}, ...}
-        
+
         # 데이터 로드 여부 플래그
         self._loaded = False
+
+        # 네이버 검색 API 폴백 (마스터 파일 실패 시 사용)
+        self._enable_naver_fallback = enable_naver_fallback
+        self._naver_search: Optional[NaverStockSearchService] = None
+        if enable_naver_fallback:
+            try:
+                self._naver_search = NaverStockSearchService()
+                logger.info("[KisMasterService] 네이버 검색 API 폴백 활성화")
+            except Exception as e:
+                logger.warning(f"[KisMasterService] 네이버 검색 API 초기화 실패: {e}")
 
     def _download_and_extract_master_file(self, urls: List[str], zip_filename: str, extracted_filename: str) -> Optional[Path]:
         """
@@ -387,58 +400,77 @@ class KisMasterService:
     def get_ticker_by_name(self, name: str) -> Optional[str]:
         """
         종목명으로 티커를 찾습니다.
-        
+
+        하이브리드 검색:
+        1차: 마스터 파일 검색 (빠름, O(1))
+        2차: 네이버 검색 API 폴백 (느림, 하지만 최신 데이터)
+
         Args:
             name: 종목명 (예: "삼성전자")
-            
+
         Returns:
             Optional[str]: 티커 (예: "005930.KS") 또는 None
         """
-        if not self._loaded:
-            logger.warning("[KisMasterService] 마스터 데이터가 로드되지 않음")
-            return None
-        
         if not name or not name.strip():
             return None
-        
+
         name = name.strip()
-        
-        # 1. 정확한 매칭
-        ticker = self._name_to_code.get(name)
-        if ticker:
-            return ticker
-        
-        # 2. 공백 제거 후 정확한 매칭
-        name_no_space = name.replace(" ", "")
-        ticker = self._name_to_code.get(name_no_space)
-        if ticker:
-            return ticker
-        
-        # 3. 부분 매칭 (대소문자 무시, 한글은 대소문자 구분 없음)
-        # 한글은 대소문자가 없으므로 정확히 매칭
-        for stock_name, stock_ticker in self._name_to_code.items():
-            if stock_name == name:
-                return stock_ticker
-            # 공백 제거 후 비교
-            if stock_name.replace(" ", "") == name_no_space:
-                return stock_ticker
-        
-        # 4. 포함 검색 (정확한 매칭이 없을 경우)
-        # 가장 긴 매칭을 우선 선택
-        best_match = None
-        best_length = 0
-        
-        for stock_name, stock_ticker in self._name_to_code.items():
-            if name in stock_name:
-                if len(stock_name) > best_length:
-                    best_match = stock_ticker
-                    best_length = len(stock_name)
-            elif stock_name in name:
-                if len(name) > best_length:
-                    best_match = stock_ticker
-                    best_length = len(name)
-        
-        return best_match
+
+        # 1차: 마스터 파일 검색 (로드된 경우)
+        if self._loaded:
+            # 1. 정확한 매칭
+            ticker = self._name_to_code.get(name)
+            if ticker:
+                return ticker
+
+            # 2. 공백 제거 후 정확한 매칭
+            name_no_space = name.replace(" ", "")
+            ticker = self._name_to_code.get(name_no_space)
+            if ticker:
+                return ticker
+
+            # 3. 부분 매칭 (대소문자 무시, 한글은 대소문자 구분 없음)
+            # 한글은 대소문자가 없으므로 정확히 매칭
+            for stock_name, stock_ticker in self._name_to_code.items():
+                if stock_name == name:
+                    return stock_ticker
+                # 공백 제거 후 비교
+                if stock_name.replace(" ", "") == name_no_space:
+                    return stock_ticker
+
+            # 4. 포함 검색 (정확한 매칭이 없을 경우)
+            # 가장 긴 매칭을 우선 선택
+            best_match = None
+            best_length = 0
+
+            for stock_name, stock_ticker in self._name_to_code.items():
+                if name in stock_name:
+                    if len(stock_name) > best_length:
+                        best_match = stock_ticker
+                        best_length = len(stock_name)
+                elif stock_name in name:
+                    if len(name) > best_length:
+                        best_match = stock_ticker
+                        best_length = len(name)
+
+            if best_match:
+                return best_match
+
+        # 2차: 네이버 검색 API 폴백
+        if self._enable_naver_fallback and self._naver_search:
+            logger.info(f"[KisMasterService] 마스터 파일 미스, 네이버 API 폴백 시도: {name}")
+            try:
+                ticker = self._naver_search.search_ticker(name)
+                if ticker:
+                    # 캐시에 추가 (다음번에는 1차에서 히트)
+                    self._name_to_code[name] = ticker
+                    logger.info(f"[KisMasterService] 네이버 API 폴백 성공: {name} → {ticker}")
+                    return ticker
+            except Exception as e:
+                logger.error(f"[KisMasterService] 네이버 API 폴백 실패: {e}")
+
+        logger.warning(f"[KisMasterService] 종목 검색 실패: {name}")
+        return None
 
     def get_detail_by_ticker(self, ticker: str) -> Optional[Dict]:
         """
