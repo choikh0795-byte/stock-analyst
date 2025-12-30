@@ -159,23 +159,31 @@ class KisDataParser:
         else:
             price_info["previous_close"] = None
 
-        # 52주 최고가
-        if "stck_hgpr" in kis_data:
-            try:
-                price_info["fifty_two_week_high"] = float(kis_data["stck_hgpr"])
-            except (ValueError, TypeError):
-                price_info["fifty_two_week_high"] = None
-        else:
-            price_info["fifty_two_week_high"] = None
+        # 52주 최고가 (w52_hgpr 또는 d250_hgpr 사용, stck_hgpr는 당일 최고가임)
+        fifty_two_week_high = None
+        for field in ["w52_hgpr", "d250_hgpr", "stck_dryy_hgpr"]:
+            if field in kis_data:
+                try:
+                    fifty_two_week_high = float(kis_data[field])
+                    if fifty_two_week_high > 0:
+                        logger.debug(f"[KisDataParser] 52주 최고가 발견: {fifty_two_week_high} (필드: {field})")
+                        break
+                except (ValueError, TypeError):
+                    continue
+        price_info["fifty_two_week_high"] = fifty_two_week_high
 
-        # 52주 최저가
-        if "stck_lwpr" in kis_data:
-            try:
-                price_info["fifty_two_week_low"] = float(kis_data["stck_lwpr"])
-            except (ValueError, TypeError):
-                price_info["fifty_two_week_low"] = None
-        else:
-            price_info["fifty_two_week_low"] = None
+        # 52주 최저가 (w52_lwpr 또는 d250_lwpr 사용, stck_lwpr는 당일 최저가임)
+        fifty_two_week_low = None
+        for field in ["w52_lwpr", "d250_lwpr", "stck_dryy_lwpr"]:
+            if field in kis_data:
+                try:
+                    fifty_two_week_low = float(kis_data[field])
+                    if fifty_two_week_low > 0:
+                        logger.debug(f"[KisDataParser] 52주 최저가 발견: {fifty_two_week_low} (필드: {field})")
+                        break
+                except (ValueError, TypeError):
+                    continue
+        price_info["fifty_two_week_low"] = fifty_two_week_low
 
         return price_info
 
