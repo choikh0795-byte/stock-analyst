@@ -16,27 +16,49 @@ logger = logging.getLogger(__name__)
 class StockProvider:
     """
     주식 데이터 제공자 라우터 (Router/Context)
-    
+
     전략 패턴의 Context 역할을 수행하며, ticker에 따라 적절한 Provider를 선택합니다.
-    - 한국 주식 (.KS, .KQ): KisStockProvider 사용
-    - 기타 주식: YahooStockProvider 사용
-    - Fallback: KIS 실패 시 자동으로 Yahoo로 재시도
+
+    ## 지역별 Provider 전략
+
+    ### 한국 주식 (.KS, .KQ)
+    - **Primary**: KisStockProvider (한국투자증권 API)
+      - 현재가, PER, PBR, EPS 등 실시간 데이터
+      - 장중 거래 시간에 높은 정확도
+    - **Secondary**: YahooStockProvider (재무제표 데이터)
+      - ROE, 부채비율, 목표가 등
+      - KIS와 병렬 호출하여 데이터 병합
+    - **Fallback**: KIS 실패 시 Yahoo만 사용
+
+    ### 미국/해외 주식
+    - **Primary**: YahooStockProvider
+      - 모든 데이터를 Yahoo Finance에서 조회
+      - 글로벌 증시 데이터 지원
+
+    ## 미국 종목 확장 가이드
+    1. 미국 시장 특화 Provider 추가 시:
+       - `USStockProvider` 클래스 생성 (BaseStockProvider 상속)
+       - `get_stock_info()` 메서드 구현 (표준화된 딕셔너리 반환)
+       - 이 클래스의 `get_stock_info()`에서 ticker 체크 후 분기 추가
+
+    2. 추가 API 통합 시 (예: Alpha Vantage, IEX Cloud):
+       - 새로운 Provider 클래스 생성
+       - BaseStockProvider 인터페이스 준수
+       - 표준화된 딕셔너리 형식으로 반환 (currency, current_price, pe_ratio 등)
     """
 
     def __init__(self) -> None:
         # 전략 패턴: Concrete Strategy 인스턴스화
-        self._yahoo_provider = YahooStockProvider()
-        self._kis_provider = KisStockProvider()
+        self._yahoo_provider = YahooStockProvider()  # 글로벌 주식 (미국, 해외)
+        self._kis_provider = KisStockProvider()      # 한국 주식 전용
 
         # 데이터 병합 및 계산 컴포넌트
         self._calculator = StockCalculator()
-        self._data_merger = DataMerger()  # Calculator 의존성 제거 (v2)
+        self._data_merger = DataMerger()
 
-        # KIS 마스터 서비스 초기화 및 데이터 로드
+        # KIS 마스터 서비스 초기화 및 데이터 로드 (한국 종목명 검색)
         try:
             self._kis_master = KisMasterService()
-            # 비동기 로드 (앱 시작 시 백그라운드에서 로드)
-            # 실패해도 앱이 죽지 않도록 try-except 처리
             load_success = self._kis_master.load_master_data()
             if load_success:
                 logger.info("[StockProvider] KIS 마스터 데이터 로드 성공")
@@ -165,25 +187,40 @@ class StockProvider:
 
     def get_stock_info(self, ticker: str) -> Dict:
         """
-        주식 정보를 가져오는 라우터 메서드.
+        주식 정보를 가져오는 라우터 메서드 (지역별 전략 선택).
 
-        한국 주식:
-        - KIS와 Yahoo를 병렬로 호출 (성능 최적화)
-        - KIS: 현재가, PER, PBR, ROE, EPS
-        - Yahoo: 부채비율, 목표가 (재무제표)
-        - 병합하여 반환
+        ## 처리 흐름
 
-        기타 주식:
-        - Yahoo만 사용
+        ### 한국 주식 (.KS, .KQ)
+        1. KIS + Yahoo 병렬 호출 (ThreadPoolExecutor)
+           - KIS: 현재가, PER, PBR, EPS (실시간)
+           - Yahoo: ROE, 부채비율, 목표가 (재무제표)
+        2. 데이터 병합 (DataMerger)
+        3. KIS 실패 시 → Yahoo Fallback
+
+        ### 미국/해외 주식 (기타)
+        1. Yahoo Provider만 단독 호출
+        2. 모든 데이터를 Yahoo에서 조회
+
+        ### 미국 종목 확장 시
+        - ticker 체크 조건 추가 (예: ticker.endswith('.US'))
+        - 새로운 Provider 인스턴스 추가 (self._us_provider)
+        - 분기 로직에 미국 전용 Provider 호출 추가
 
         Args:
             ticker: 주식 티커 심볼 (예: "005930.KS", "AAPL")
 
         Returns:
             Dict: 표준화된 주식 정보 딕셔너리
+                - currency: "KRW" | "USD"
+                - current_price: float
+                - pe_ratio, pb_ratio, roe, eps, debt_ratio: Optional[float]
+                - name, sector, industry: str
+                - fifty_two_week_low/high, target_mean_price: Optional[float]
         """
         ticker_upper = ticker.upper()
         is_korean = ticker_upper.endswith((".KS", ".KQ"))
+        # 미국 종목 확장 시: is_us = ticker_upper.endswith((".US", )) 추가
 
         # 한국 주식인 경우: KIS + Yahoo 병렬 호출
         if is_korean:
