@@ -39,19 +39,14 @@ export const PriceRangeBar: React.FC<PriceRangeBarProps> = ({
   // 범위 계산 (52주 최저가와 최고가 기준)
   const range = high - low
 
-  // 현재가의 위치를 퍼센트로 계산 (0~100%)
-  // 현재가가 범위를 벗어나도 표시 가능하도록 계산
-  let position: number
-  if (current <= low) {
-    position = 0
-  } else if (current >= high) {
-    position = 100
-  } else {
-    position = ((current - low) / range) * 100
-  }
+  // 현재가의 위치를 퍼센트로 계산
+  // 범위를 벗어나도 계산하여 시각적으로 표현
+  let position: number = ((current - low) / range) * 100
 
   // 현재가가 범위 내에 있는지 확인
   const isInRange = current >= low && current <= high
+  const isNewHigh = current > high  // 52주 신고가 돌파
+  const isNewLow = current < low    // 52주 신저가
 
   return (
     <div className="w-full">
@@ -91,25 +86,37 @@ export const PriceRangeBar: React.FC<PriceRangeBarProps> = ({
 
         {/* 현재가 마커 - 점 표시 (막대바 중앙에 절대 위치) */}
         <div
-          className="absolute w-4 h-4 bg-slate-900 rounded-full border-2 border-white shadow-lg z-10 transition-all duration-300"
+          className={`absolute rounded-full border-2 z-10 transition-all duration-300 ${
+            isNewHigh
+              ? 'w-5 h-5 bg-red-500 border-red-300 shadow-[0_0_12px_rgba(239,68,68,0.6)] animate-pulse'
+              : isNewLow
+              ? 'w-5 h-5 bg-blue-500 border-blue-300 shadow-[0_0_12px_rgba(59,130,246,0.6)]'
+              : 'w-4 h-4 bg-slate-900 border-white shadow-lg'
+          }`}
           style={{
             top: 'calc(2rem + 1.25rem)', // py-8 패딩(2rem) + 막대바 높이의 절반(h-10/2 = 1.25rem)
-            left: `calc(0.5rem + ${Math.max(0, Math.min(100, position))}% - 8px)`, // px-2 패딩(0.5rem) + position% - 마커 반너비(8px)
+            left: (() => {
+              // 범위를 벗어난 경우 처리
+              const clampedPosition = Math.max(-10, Math.min(110, position))
+              const markerSize = isNewHigh || isNewLow ? 10 : 8 // 마커 반너비
+              return `calc(0.5rem + ${clampedPosition}% - ${markerSize}px)`
+            })(),
             transform: 'translateY(-50%)',
           }}
         >
           {/* 마커 위에 현재가 표시 - 위치 동적 조정 */}
           <div
-            className="absolute -top-8 whitespace-nowrap transition-all duration-300"
+            className="absolute -top-12 whitespace-nowrap transition-all duration-300"
             style={{
               left: '50%',
               transform: (() => {
+                const clampedPosition = Math.max(0, Math.min(100, position))
                 // 왼쪽 끝(10% 이하)에 가까우면 말풍선을 오른쪽으로 이동
-                if (position <= 10) {
+                if (clampedPosition <= 10) {
                   return 'translateX(-10%)'
                 }
                 // 오른쪽 끝(90% 이상)에 가까우면 말풍선을 왼쪽으로 이동
-                if (position >= 90) {
+                if (clampedPosition >= 90) {
                   return 'translateX(-90%)'
                 }
                 // 중간 위치에서는 중앙 정렬
@@ -117,18 +124,41 @@ export const PriceRangeBar: React.FC<PriceRangeBarProps> = ({
               })(),
             }}
           >
-            <div className="bg-slate-900 text-white text-xs font-semibold px-2 py-1 rounded-md shadow-md">
+            {/* 신고가/신저가 배지 */}
+            {(isNewHigh || isNewLow) && (
+              <div className={`mb-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                isNewHigh
+                  ? 'bg-red-500 text-white shadow-[0_0_8px_rgba(239,68,68,0.4)]'
+                  : 'bg-blue-500 text-white shadow-[0_0_8px_rgba(59,130,246,0.4)]'
+              }`}>
+                {isNewHigh ? '🔥 신고가 돌파' : '❄️ 신저가'}
+              </div>
+            )}
+            <div className={`text-white text-xs font-semibold px-2 py-1 rounded-md shadow-md ${
+              isNewHigh
+                ? 'bg-red-600'
+                : isNewLow
+                ? 'bg-blue-600'
+                : 'bg-slate-900'
+            }`}>
               {formatPrice(current, current_str)}
             </div>
             <div
-              className="w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent border-t-slate-900"
+              className={`w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent ${
+                isNewHigh
+                  ? 'border-t-red-600'
+                  : isNewLow
+                  ? 'border-t-blue-600'
+                  : 'border-t-slate-900'
+              }`}
               style={{
                 marginLeft: (() => {
+                  const clampedPosition = Math.max(0, Math.min(100, position))
                   // 말풍선 위치에 따라 삼각형도 조정
-                  if (position <= 10) {
+                  if (clampedPosition <= 10) {
                     return '10%'
                   }
-                  if (position >= 90) {
+                  if (clampedPosition >= 90) {
                     return '90%'
                   }
                   return '50%'
@@ -144,18 +174,25 @@ export const PriceRangeBar: React.FC<PriceRangeBarProps> = ({
       {isInRange && (
         <div className="text-center">
           <span className="text-xs sm:text-sm text-slate-600">
-            현재가가 52주 범위의{' '} 
+            현재가가 52주 범위의{' '}
             <span className="font-semibold text-slate-900">
               {position >= 0 && position <= 100 ? position.toFixed(1) : '0.0'}%
             </span>
-             위치에 있습니다
+            {' '}위치에 있습니다
           </span>
         </div>
       )}
-      {!isInRange && (
+      {isNewHigh && (
         <div className="text-center">
-          <span className="text-xs sm:text-sm text-slate-600 font-medium">
-            {current < low ? '52주 최저가 이하' : '52주 최고가 이상'}
+          <span className="text-xs sm:text-sm font-semibold text-red-600">
+            🚀 52주 최고가를 {((current - high) / high * 100).toFixed(1)}% 돌파했습니다
+          </span>
+        </div>
+      )}
+      {isNewLow && (
+        <div className="text-center">
+          <span className="text-xs sm:text-sm font-semibold text-blue-600">
+            📉 52주 최저가 대비 {((low - current) / low * 100).toFixed(1)}% 하락했습니다
           </span>
         </div>
       )}

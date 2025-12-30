@@ -94,22 +94,67 @@ async def analyze_stock(
 ) -> StockAnalysisResponse:
     """
     주식 정보를 가져오고 AI 분석을 수행합니다.
-    
+
+    성능 최적화:
+    - AI 분석 결과를 DB 캐시에서 먼저 확인 (1시간 TTL)
+    - 캐시 미스 시에만 AI 분석 수행
+
     Args:
         request: 주식 분석 요청 데이터
         stock_service: 주입받은 StockService 인스턴스
         ai_service: 주입받은 AIService 인스턴스
         db: 데이터베이스 세션
-        
+
     Returns:
         StockAnalysisResponse: 주식 정보, AI 분석 결과
     """
     try:
+        from datetime import datetime, timedelta
+        from app.models.stock import StockAnalysisLog
+
         ticker = request.ticker.upper()
-        
-        # 주식 정보 가져오기
+
+        # 1. 캐시 확인 (AI 분석 포함)
+        cache_valid_until = datetime.utcnow() - timedelta(hours=1)
+        cached_log = (
+            db.query(StockAnalysisLog)
+            .filter(
+                StockAnalysisLog.ticker == ticker,
+                StockAnalysisLog.updated_at >= cache_valid_until
+            )
+            .first()
+        )
+
+        if cached_log and cached_log.analysis_json:
+            # 캐시된 데이터 사용 (stock_data + ai_analysis)
+            stock_data = cached_log.analysis_json.get("stock_data", {})
+            ai_analysis = cached_log.analysis_json.get("ai_analysis")
+
+            if stock_data and ai_analysis:
+                logger.info(f"[Stocks Router] 캐시 적중: {ticker} (stock_data + ai_analysis)")
+
+                # market_cap 타입 검증
+                if 'market_cap' in stock_data and stock_data['market_cap'] is not None:
+                    if not isinstance(stock_data['market_cap'], str):
+                        try:
+                            stock_data['market_cap'] = str(int(float(stock_data['market_cap'])))
+                        except (ValueError, TypeError) as e:
+                            logger.warning(f"[Stocks Router] market_cap 변환 실패: {e}")
+                            stock_data['market_cap'] = None
+
+                # metric_insights 추가
+                if ai_analysis and 'metric_insights' in ai_analysis:
+                    stock_data['metric_insights'] = ai_analysis.get('metric_insights')
+
+                return StockAnalysisResponse(
+                    stock_data=StockInfo(**stock_data),
+                    ai_analysis=ai_analysis
+                )
+
+        # 2. 캐시 미스 - 주식 정보 가져오기
+        logger.info(f"[Stocks Router] 캐시 미스: {ticker} - 새로 조회")
         stock_data = stock_service.get_stock_info(ticker, db)
-        
+
         # market_cap 타입 검증 및 강제 변환 (스키마 호환성)
         if 'market_cap' in stock_data and stock_data['market_cap'] is not None:
             if not isinstance(stock_data['market_cap'], str):
@@ -119,14 +164,42 @@ async def analyze_stock(
                 except (ValueError, TypeError) as e:
                     logger.warning(f"[Stocks Router] market_cap 변환 실패: {e}, None으로 설정")
                     stock_data['market_cap'] = None
-        
-        # AI 분석 수행
+
+        # 3. AI 분석 수행
         ai_analysis = ai_service.analyze_stock(stock_data)
-        
+
+        # 4. AI 분석 결과를 DB에 저장 (캐싱)
+        try:
+            analysis_json = {
+                "stock_data": stock_data,
+                "ai_analysis": ai_analysis
+            }
+            log = db.query(StockAnalysisLog).filter(
+                StockAnalysisLog.ticker == ticker
+            ).first()
+
+            if log:
+                log.price = stock_data.get("current_price", 0)
+                log.analysis_json = analysis_json
+                log.updated_at = datetime.utcnow()
+            else:
+                new_log = StockAnalysisLog(
+                    ticker=ticker,
+                    price=stock_data.get("current_price", 0),
+                    analysis_json=analysis_json
+                )
+                db.add(new_log)
+
+            db.commit()
+            logger.info(f"[Stocks Router] AI 분석 결과 캐싱 완료: {ticker}")
+        except Exception as cache_err:
+            logger.error(f"[Stocks Router] AI 분석 결과 캐싱 실패: {cache_err}")
+            db.rollback()
+
         # AI 분석 결과에서 metric_insights를 stock_data에 추가
         if ai_analysis and 'metric_insights' in ai_analysis:
             stock_data['metric_insights'] = ai_analysis.get('metric_insights')
-        
+
         return StockAnalysisResponse(
             stock_data=StockInfo(**stock_data),
             ai_analysis=ai_analysis

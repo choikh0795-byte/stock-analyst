@@ -71,32 +71,13 @@ export const useStockAnalysis = (): UseStockAnalysisReturn => {
     }, 1500)
 
     try {
-      // 백엔드가 자동으로 티커 변환을 처리하지만, 
-      // 변환된 티커를 표시하기 위해 먼저 검색 수행
-      let resolvedTicker = originalQuery.toUpperCase()
-      
-      // 입력값이 티커 형식인지 간단히 체크 (대문자 영문자+숫자만 있는지)
-      const isTickerFormat = /^[A-Z0-9]{1,10}(\.[KSKQ])?$/.test(originalQuery.toUpperCase())
-      
-      if (!isTickerFormat) {
-        // 티커 형식이 아니면 검색 수행
-        updateLoadingMessage('종목 검색 중...')
-        try {
-          const searchResult = await stockApi.searchTicker(originalQuery)
-          resolvedTicker = searchResult.ticker
-          setResolvedTicker(resolvedTicker)
-          updateLoadingMessage('데이터 수집 중...')
-        } catch (searchErr) {
-          // 검색 실패 시 원본으로 진행 (백엔드에서 다시 시도)
-          console.warn('Ticker search failed, proceeding with original query:', searchErr)
-          resolvedTicker = originalQuery.toUpperCase()
-        }
-      } else {
-        setResolvedTicker(resolvedTicker)
-      }
+      // 성능 최적화: 백엔드가 자동으로 티커 변환을 처리하므로
+      // search API를 별도로 호출하지 않고 바로 analyze API 호출
+      updateLoadingMessage('데이터 수집 중...')
 
-      // 분석 요청 (백엔드에서도 티커 변환을 처리하므로 원본 query 전달)
+      // 분석 요청 (백엔드에서 티커 변환 자동 처리)
       const response = await stockApi.getStockAnalysis({ ticker: originalQuery })
+
       console.info('[useStockAnalysis] setStockData payload', {
         symbol: response.stock_data?.symbol,
         roe: response.stock_data?.roe,
@@ -106,9 +87,10 @@ export const useStockAnalysis = (): UseStockAnalysisReturn => {
         eps_str: response.stock_data?.eps_str,
         beta: response.stock_data?.beta,
       })
+
       setStockData(response.stock_data)
       setAiAnalysis(response.ai_analysis)
-      
+
       // 응답에서 실제 사용된 티커 확인 (백엔드가 변환한 경우)
       if (response.stock_data?.symbol) {
         setResolvedTicker(response.stock_data.symbol)
