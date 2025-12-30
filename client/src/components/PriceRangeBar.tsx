@@ -40,13 +40,15 @@ export const PriceRangeBar: React.FC<PriceRangeBarProps> = ({
   const range = high - low
 
   // 현재가의 위치를 퍼센트로 계산
-  // 범위를 벗어나도 계산하여 시각적으로 표현
   let position: number = ((current - low) / range) * 100
 
   // 현재가가 범위 내에 있는지 확인
   const isInRange = current >= low && current <= high
   const isNewHigh = current > high  // 52주 신고가 돌파
   const isNewLow = current < low    // 52주 신저가
+
+  // 점 위치를 0~100% 범위로 제한 (항상 바 안에 표시)
+  const clampedPosition = Math.max(0, Math.min(100, position))
 
   return (
     <div className="w-full">
@@ -96,8 +98,6 @@ export const PriceRangeBar: React.FC<PriceRangeBarProps> = ({
           style={{
             top: 'calc(2rem + 1.25rem)', // py-8 패딩(2rem) + 막대바 높이의 절반(h-10/2 = 1.25rem)
             left: (() => {
-              // 범위를 벗어난 경우 처리
-              const clampedPosition = Math.max(-10, Math.min(110, position))
               const markerSize = isNewHigh || isNewLow ? 10 : 8 // 마커 반너비
               return `calc(0.5rem + ${clampedPosition}% - ${markerSize}px)`
             })(),
@@ -110,7 +110,6 @@ export const PriceRangeBar: React.FC<PriceRangeBarProps> = ({
             style={{
               left: '50%',
               transform: (() => {
-                const clampedPosition = Math.max(0, Math.min(100, position))
                 // 왼쪽 끝(10% 이하)에 가까우면 말풍선을 오른쪽으로 이동
                 if (clampedPosition <= 10) {
                   return 'translateX(-10%)'
@@ -153,7 +152,6 @@ export const PriceRangeBar: React.FC<PriceRangeBarProps> = ({
               }`}
               style={{
                 marginLeft: (() => {
-                  const clampedPosition = Math.max(0, Math.min(100, position))
                   // 말풍선 위치에 따라 삼각형도 조정
                   if (clampedPosition <= 10) {
                     return '10%'
@@ -176,7 +174,7 @@ export const PriceRangeBar: React.FC<PriceRangeBarProps> = ({
           <span className="text-xs sm:text-sm text-slate-600">
             현재가가 52주 범위의{' '}
             <span className="font-semibold text-slate-900">
-              {position >= 0 && position <= 100 ? position.toFixed(1) : '0.0'}%
+              {clampedPosition.toFixed(1)}%
             </span>
             {' '}위치에 있습니다
           </span>

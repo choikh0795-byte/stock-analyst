@@ -64,14 +64,21 @@ export const useStockAnalysis = (): UseStockAnalysisReturn => {
       await new Promise(resolve => setTimeout(resolve, 300)) // UI 피드백을 위한 최소 지연
       updateProgressStep('ticker_conversion', 'completed', '종목 확인 완료')
 
-      // 2단계: 데이터 조회
+      // 2단계: 데이터 조회 시작
       updateProgressStep('data_fetching', 'in_progress', '주가 및 재무 데이터를 수집하는 중입니다')
 
-      // 3단계: AI 분석 (API 호출 전에 미리 시작 상태로 표시)
-      // 백엔드에서 데이터 조회 후 바로 AI 분석이 시작되므로
+      // 백엔드에서 데이터 조회 후 AI 분석이 시작되므로,
+      // 데이터 조회 시작 후 일정 시간 뒤에 AI 분석도 진행 중으로 표시
+      const aiAnalysisTimer = setTimeout(() => {
+        updateProgressStep('ai_analysis', 'in_progress', '투자 리포트를 작성하는 중입니다')
+      }, 1500) // 1.5초 후 AI 분석 시작 (백엔드에서 데이터 조회 완료 후 AI 분석 시작 시점 추정)
 
       // 분석 요청 (백엔드에서 티커 변환 자동 처리)
+      // 이 API 호출 중에 백엔드에서 주식 정보 조회 → AI 분석(OpenAI 호출)이 순차적으로 진행됨
       const response = await stockApi.getStockAnalysis({ ticker: originalQuery })
+
+      // 타이머 정리 (API 응답이 빠르게 올 경우 대비)
+      clearTimeout(aiAnalysisTimer)
 
       console.info('[useStockAnalysis] setStockData payload', {
         symbol: response.stock_data?.symbol,
@@ -83,12 +90,8 @@ export const useStockAnalysis = (): UseStockAnalysisReturn => {
         beta: response.stock_data?.beta,
       })
 
-      // 데이터 조회 완료
+      // API 응답을 받았으므로 데이터 조회와 AI 분석 모두 완료
       updateProgressStep('data_fetching', 'completed', '데이터 수집 완료')
-
-      // AI 분석 진행 중으로 표시
-      updateProgressStep('ai_analysis', 'in_progress', '투자 리포트를 작성하는 중입니다')
-      await new Promise(resolve => setTimeout(resolve, 500)) // AI 분석 시뮬레이션
       updateProgressStep('ai_analysis', 'completed', 'AI 분석 완료')
 
       // 최종 완료
