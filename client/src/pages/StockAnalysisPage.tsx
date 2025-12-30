@@ -6,8 +6,8 @@ import {
   SearchBox,
   StockCard,
   ErrorMessage,
-  Loading,
 } from '../components'
+import { ProgressTracker } from '../components/ProgressTracker'
 import './StockAnalysisPage.css'
 
 /**
@@ -26,6 +26,8 @@ export const StockAnalysisPage: React.FC = () => {
 
   const resolvedTicker = useStockStore((state) => state.resolvedTicker)
   const originalQuery = useStockStore((state) => state.originalQuery)
+  const progressSteps = useStockStore((state) => state.progressSteps)
+  const currentStepIndex = useStockStore((state) => state.currentStepIndex)
   const [showTickerInfo, setShowTickerInfo] = useState(false)
 
   // 변환된 티커가 있고 원본과 다르면 정보 표시
@@ -71,7 +73,11 @@ export const StockAnalysisPage: React.FC = () => {
 
         {error && <ErrorMessage message={error} />}
 
-        {loading && <Loading ticker={ticker} />}
+        {loading && (
+          <div className="mt-6">
+            <ProgressTracker steps={progressSteps} currentStepIndex={currentStepIndex} />
+          </div>
+        )}
 
         {stockData && (
           <div className="results mt-5">

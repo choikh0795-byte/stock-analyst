@@ -54,26 +54,21 @@ export const useStockAnalysis = (): UseStockAnalysisReturn => {
     setOriginalQuery(originalQuery)
     setResolvedTicker(null)
 
-    // 동적 로딩 메시지 시퀀스
-    const loadingMessages = [
-      '종목 검색 중...',
-      '데이터 수집 중...',
-      '재무제표 분석 중...',
-      'AI 리포트 작성 중...',
-    ]
-
-    let messageIndex = 0
-    updateLoadingMessage(loadingMessages[0])
-
-    const messageInterval = setInterval(() => {
-      messageIndex = (messageIndex + 1) % loadingMessages.length
-      updateLoadingMessage(loadingMessages[messageIndex])
-    }, 1500)
+    // 진행 단계 초기화
+    const { initializeProgress, updateProgressStep } = useStockStore.getState()
+    initializeProgress()
 
     try {
-      // 성능 최적화: 백엔드가 자동으로 티커 변환을 처리하므로
-      // search API를 별도로 호출하지 않고 바로 analyze API 호출
-      updateLoadingMessage('데이터 수집 중...')
+      // 1단계: 티커 변환
+      updateProgressStep('ticker_conversion', 'in_progress', '종목 정보를 확인하는 중입니다')
+      await new Promise(resolve => setTimeout(resolve, 300)) // UI 피드백을 위한 최소 지연
+      updateProgressStep('ticker_conversion', 'completed', '종목 확인 완료')
+
+      // 2단계: 데이터 조회
+      updateProgressStep('data_fetching', 'in_progress', '주가 및 재무 데이터를 수집하는 중입니다')
+
+      // 3단계: AI 분석 (API 호출 전에 미리 시작 상태로 표시)
+      // 백엔드에서 데이터 조회 후 바로 AI 분석이 시작되므로
 
       // 분석 요청 (백엔드에서 티커 변환 자동 처리)
       const response = await stockApi.getStockAnalysis({ ticker: originalQuery })
@@ -88,6 +83,17 @@ export const useStockAnalysis = (): UseStockAnalysisReturn => {
         beta: response.stock_data?.beta,
       })
 
+      // 데이터 조회 완료
+      updateProgressStep('data_fetching', 'completed', '데이터 수집 완료')
+
+      // AI 분석 진행 중으로 표시
+      updateProgressStep('ai_analysis', 'in_progress', '투자 리포트를 작성하는 중입니다')
+      await new Promise(resolve => setTimeout(resolve, 500)) // AI 분석 시뮬레이션
+      updateProgressStep('ai_analysis', 'completed', 'AI 분석 완료')
+
+      // 최종 완료
+      updateProgressStep('completed', 'completed', '모든 분석이 완료되었습니다')
+
       setStockData(response.stock_data)
       setAiAnalysis(response.ai_analysis)
 
@@ -99,8 +105,14 @@ export const useStockAnalysis = (): UseStockAnalysisReturn => {
       const errorMessage = err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다.'
       setError(errorMessage)
       console.error('Stock analysis error:', err)
+
+      // 에러 발생 시 현재 단계를 에러 상태로 업데이트
+      const { progressSteps } = useStockStore.getState()
+      const currentStep = progressSteps.find(step => step.status === 'in_progress')
+      if (currentStep) {
+        updateProgressStep(currentStep.id as any, 'error', errorMessage)
+      }
     } finally {
-      clearInterval(messageInterval)
       updateLoadingMessage('')
       setIsLoading(false)
     }

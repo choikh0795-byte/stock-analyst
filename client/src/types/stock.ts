@@ -96,3 +96,24 @@ export interface UpdateLog {
   content: string
 }
 
+/**
+ * 분석 진행 단계 상태
+ */
+export type ProgressStatus = 'pending' | 'in_progress' | 'completed' | 'error'
+
+/**
+ * 분석 진행 단계 정의
+ */
+export interface ProgressStep {
+  id: string
+  label: string
+  icon: string // Lucide icon name
+  status: ProgressStatus
+  message?: string
+}
+
+/**
+ * 진행 단계 ID 타입
+ */
+export type ProgressStepId = 'ticker_conversion' | 'data_fetching' | 'ai_analysis' | 'completed'
+
