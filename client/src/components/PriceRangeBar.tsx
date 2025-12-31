@@ -163,6 +163,7 @@ export const PriceRangeBar: React.FC<PriceRangeBarProps> = ({
           </div>
         </div>
       </div>
+      </div>
 
       {/* 위치 정보 텍스트 */}
       {isInRange && (

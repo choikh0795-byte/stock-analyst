@@ -1,3 +1,4 @@
+
 # Stock Analysis API Server
 
 FastAPI 기반 주식 분석 API 서버입니다. **Layered Architecture (계층화 아키텍처)**로 설계되었습니다.
