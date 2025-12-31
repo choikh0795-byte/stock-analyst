@@ -80,15 +80,19 @@ class AIService:
         stock_data: Dict
     ) -> Optional[Dict]:
         """
-        주식 데이터를 분석하여 AI 분석 결과를 반환합니다. (최적화)
+        자산(주식/ETF) 데이터를 분석하여 AI 분석 결과를 반환합니다. (최적화)
+
+        자산 타입별 프롬프트:
+        - STOCK: 주식 전용 프롬프트 (PER, PBR, ROE 중심)
+        - ETF: ETF 전용 프롬프트 (운용보수, 괴리율, 순자산 중심)
 
         최적화:
         - Structured Outputs로 JSON 스키마 강제 (파싱 속도↑)
-        - temperature 0.2 적용 (생성 속도↑)
-        - max_tokens 800 제한 (불필요한 생성 방지)
+        - temperature 0.6 적용 (자연스러운 톤)
+        - max_tokens 600 제한 (불필요한 생성 방지)
 
         Args:
-            stock_data: 주식 정보 딕셔너리
+            stock_data: 자산 정보 딕셔너리 (asset_type 필드 포함)
 
         Returns:
             Optional[Dict]: AI 분석 결과 딕셔너리 (실패 시 None)
@@ -100,7 +104,12 @@ class AIService:
         # Payload 필터링 (토큰 수 감소)
         filtered_stock_data = self._filter_payload(stock_data)
 
-        system_prompt, user_prompt = self._build_analysis_prompts(filtered_stock_data)
+        # 자산 타입에 따라 다른 프롬프트 생성
+        asset_type = stock_data.get("asset_type", "STOCK")
+        if asset_type == "ETF":
+            system_prompt, user_prompt = self._build_etf_analysis_prompts(filtered_stock_data)
+        else:
+            system_prompt, user_prompt = self._build_analysis_prompts(filtered_stock_data)
 
         try:
             # Structured Outputs 사용 (response_format에 스키마 명시)
@@ -211,6 +220,75 @@ PER {per}, PBR {pbr}, ROE {roe}%, EPS {eps}
 2. one_line: 핵심 한줄 요약
 3. summary: 3개 포인트 (핵심 투자 포인트)
 4. risk: 주요 리스크 1개"""
+
+        return system_prompt, user_prompt
+
+    def _build_etf_analysis_prompts(self, stock_data: Dict) -> Tuple[str, str]:
+        """
+        ETF AI 분석을 위한 시스템 프롬프트와 사용자 프롬프트를 생성합니다.
+
+        최적화:
+        - ETF 전용 지표 중심 분석 (운용보수, 괴리율, 순자산)
+        - 자연스러운 톤 (친근한 페르소나)
+        - 비용 효율성과 추적 안정성 중심 평가
+
+        Args:
+            stock_data: ETF 정보 딕셔너리
+
+        Returns:
+            Tuple[str, str]: (시스템 프롬프트, 사용자 프롬프트)
+        """
+        # 시스템 프롬프트: ETF 전문가 페르소나
+        system_prompt = """너는 10년차 ETF 전문가야. 친근하고 솔직한 톤으로 ETF 투자 분석을 제공해.
+각 지표는 서로 다른 관점이니 개별적으로 분석해줘.
+섹터 테마와 추적 안정성 고려하고, 주요 리스크 1개만 명시해.
+한국어 반말(~해, ~야, ~임) 사용하고 마침표 없이 작성해."""
+
+        # 데이터 추출
+        sector = stock_data.get('sector', '정보없음')
+        industry = stock_data.get('industry', '정보없음')
+        backend_score = stock_data.get("score", 50.0)
+
+        # ETF 전용 지표
+        expense_ratio = stock_data.get('expense_ratio', 'N/A')
+        total_assets = stock_data.get('total_assets', 'N/A')
+        premium_discount = stock_data.get('premium_discount', 'N/A')
+        dividend_yield = stock_data.get('dividend_yield', 'N/A')
+        inception_date = stock_data.get('inception_date', 'N/A')
+
+        current_price = stock_data.get('current_price', 'N/A')
+        currency = stock_data.get('currency', '')
+
+        # 순자산 포맷팅 (간단하게)
+        if total_assets != 'N/A' and total_assets is not None:
+            if total_assets >= 1_000_000_000:  # 1B 이상
+                total_assets_str = f"${total_assets / 1_000_000_000:.1f}B"
+            elif total_assets >= 1_000_000:  # 1M 이상
+                total_assets_str = f"${total_assets / 1_000_000:.0f}M"
+            else:
+                total_assets_str = f"${int(total_assets):,}"
+        else:
+            total_assets_str = "N/A"
+
+        # 괴리율 포맷팅
+        if premium_discount != 'N/A' and premium_discount is not None:
+            premium_discount_str = f"{premium_discount:+.2f}%"
+        else:
+            premium_discount_str = "N/A"
+
+        # 사용자 프롬프트: ETF 전용
+        user_prompt = f"""{stock_data.get('name', 'N/A')} ({stock_data.get('symbol', 'N/A')})
+가격 {current_price}{currency} | 섹터 {sector} | 테마 {industry} | 점수 {backend_score}
+
+ETF 지표:
+운용보수 {expense_ratio}%, 순자산 {total_assets_str}, 괴리율 {premium_discount_str}
+배당수익률 {dividend_yield}%, 설정일 {inception_date}
+
+분석 요구사항:
+1. signal: 매수(≥70), 중립(50-69), 주의(<50)
+2. one_line: 핵심 한줄 요약 (비용 효율성 중심)
+3. summary: 3개 포인트 (운용보수 적정성, 괴리율 안정성, 테마 적합성)
+4. risk: 주요 리스크 1개 (추적오차, 유동성 등)"""
 
         return system_prompt, user_prompt
 
