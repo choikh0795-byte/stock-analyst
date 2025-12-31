@@ -142,10 +142,6 @@ async def analyze_stock(
                             logger.warning(f"[Stocks Router] market_cap 변환 실패: {e}")
                             stock_data['market_cap'] = None
 
-                # metric_insights 추가
-                if ai_analysis and 'metric_insights' in ai_analysis:
-                    stock_data['metric_insights'] = ai_analysis.get('metric_insights')
-
                 return StockAnalysisResponse(
                     stock_data=StockInfo(**stock_data),
                     ai_analysis=ai_analysis
@@ -195,10 +191,6 @@ async def analyze_stock(
         except Exception as cache_err:
             logger.error(f"[Stocks Router] AI 분석 결과 캐싱 실패: {cache_err}")
             db.rollback()
-
-        # AI 분석 결과에서 metric_insights를 stock_data에 추가
-        if ai_analysis and 'metric_insights' in ai_analysis:
-            stock_data['metric_insights'] = ai_analysis.get('metric_insights')
 
         return StockAnalysisResponse(
             stock_data=StockInfo(**stock_data),

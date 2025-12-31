@@ -2,7 +2,7 @@ import React, { useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { METRIC_DEFINITIONS } from '../constants/metrics'
 import type { StockInfo } from '../types/stock'
-import { Tag, Building2, TrendingUp, Coins, DollarSign, Target, X, BookOpen, Bot, Lightbulb } from 'lucide-react'
+import { Tag, Building2, TrendingUp, Coins, DollarSign, Target, X, BookOpen, Lightbulb } from 'lucide-react'
 
 interface MetricModalProps {
   isOpen: boolean
@@ -87,29 +87,6 @@ export const MetricModal: React.FC<MetricModalProps> = ({
     }
   }
 
-  // AI 인사이트 가져오기 (직접 매핑)
-  const getAIInsight = (): string | undefined => {
-    if (!stockData.metric_insights) return undefined
-
-    // 백엔드 metric_insights 구조에 맞게 직접 매핑
-    // 백엔드: { per, pbr, roe, eps, debt_ratio, target_gap }
-    const insightMap: Record<string, keyof typeof stockData.metric_insights> = {
-      pe_ratio: 'per',
-      pb_ratio: 'pbr',
-      roe: 'roe',
-      return_on_equity: 'roe',
-      eps: 'eps',
-      debt_ratio: 'debt_ratio',
-      target_mean_price: 'target_gap',
-    }
-
-    const insightKey = insightMap[metricKey]
-    if (!insightKey) return undefined
-
-    return stockData.metric_insights[insightKey]
-  }
-
-  const aiInsight = getAIInsight()
 
   // 지표 평가 상태 및 색상 결정
   const getMetricStatus = (): { status: string; colorClass: string; bgClass: string; textColor: string } => {
@@ -535,27 +512,6 @@ export const MetricModal: React.FC<MetricModalProps> = ({
                   )}
                 </div>
 
-                {/* Section D: AI 코멘트 - Insight Box */}
-                {aiInsight && (
-                  <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
-                    <div className="flex items-start gap-3">
-                      <Bot className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                      <div className="flex-1">
-                        <p className="text-sm text-slate-800 leading-relaxed font-medium">
-                          {aiInsight}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {!aiInsight && (
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                    <p className="text-sm text-slate-500 text-center">
-                      AI 평가 데이터가 없어요
-                    </p>
-                  </div>
-                )}
               </div>
             </div>
           </motion.div>
@@ -632,27 +588,6 @@ export const MetricModal: React.FC<MetricModalProps> = ({
                   )}
                 </div>
 
-                {/* Section D: AI 코멘트 - Insight Box */}
-                {aiInsight && (
-                  <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
-                    <div className="flex items-start gap-3">
-                      <Bot className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                      <div className="flex-1">
-                        <p className="text-sm text-slate-800 leading-relaxed font-medium">
-                          {aiInsight}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {!aiInsight && (
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                    <p className="text-sm text-slate-500 text-center">
-                      AI 평가 데이터가 없어요
-                    </p>
-                  </div>
-                )}
               </div>
             </div>
           </motion.div>

@@ -14,10 +14,10 @@ class AIService:
 
     최적화 포인트:
     - Structured Outputs 사용 (빠른 JSON 파싱)
-    - temperature 0.2 (일관성 증가, 생성 속도 향상)
-    - max_tokens 제한 (800) (불필요한 토큰 생성 방지)
+    - temperature 0.6 (자연스러운 톤 + 일관성 유지)
+    - max_tokens 제한 (600) (불필요한 토큰 생성 방지)
     - 간소화된 프롬프트 (토큰 수 감소)
-    - 단순화된 JSON 스키마 (metric_insights: 8개→4개 필드)
+    - 단순화된 JSON 스키마 (4개 필드: signal, one_line, summary, risk)
     """
 
     def __init__(self, api_key: str, model: str = "gpt-4o-mini"):
@@ -129,22 +129,9 @@ class AIService:
                                     "minItems": 3,
                                     "maxItems": 3
                                 },
-                                "risk": {"type": "string"},
-                                "metric_insights": {
-                                    "type": "object",
-                                    "properties": {
-                                        "per": {"type": "string"},
-                                        "pbr": {"type": "string"},
-                                        "roe": {"type": "string"},
-                                        "eps": {"type": "string"},
-                                        "debt_ratio": {"type": "string"},
-                                        "target_gap": {"type": "string"}
-                                    },
-                                    "required": ["per", "pbr", "roe", "eps", "debt_ratio", "target_gap"],
-                                    "additionalProperties": False
-                                }
+                                "risk": {"type": "string"}
                             },
-                            "required": ["signal", "one_line", "summary", "risk", "metric_insights"],
+                            "required": ["signal", "one_line", "summary", "risk"],
                             "additionalProperties": False
                         }
                     }
@@ -222,9 +209,8 @@ PER {per}, PBR {pbr}, ROE {roe}%, EPS {eps}
 분석 요구사항:
 1. signal: 매수(≥70), 중립(50-69), 주의(<50)
 2. one_line: 핵심 한줄 요약
-3. summary: 3개 포인트
-4. risk: 주요 리스크 1개
-5. metric_insights: 각 지표별 독립 분석 (PER, PBR, ROE, EPS, 부채비율, 목표가 괴리율)"""
+3. summary: 3개 포인트 (핵심 투자 포인트)
+4. risk: 주요 리스크 1개"""
 
         return system_prompt, user_prompt
 
