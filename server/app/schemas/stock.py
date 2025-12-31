@@ -30,8 +30,6 @@ class StockInfo(BaseModel):
     number_of_analyst_opinions: Optional[int] = None
     peg_ratio: Optional[float] = None
     beta: Optional[float] = None
-    # 지표별 AI 인사이트 (각 지표에 대한 한 문장 평가)
-    metric_insights: Optional[Dict[str, str]] = None
     # 백엔드에서 포맷팅된 가격 문자열 (한국: "58,800원", 미국: "$145.20")
     current_price_str: Optional[str] = None
     previous_close_str: Optional[str] = None
@@ -99,16 +97,6 @@ class StockAnalysisResponse(BaseModel):
     ai_analysis: Optional[dict] = None
 
 
-class MetricInsights(BaseModel):
-    """지표 인사이트 - 6개 지표별 독립 분석"""
-    per: str  # PER 지표 분석
-    pbr: str  # PBR 지표 분석
-    roe: str  # ROE 지표 분석
-    eps: str  # EPS 지표 분석
-    debt_ratio: str  # 부채비율 분석
-    target_gap: str  # 목표가 괴리율 분석
-
-
 class AIAnalysisResponse(BaseModel):
     """AI 분석 결과 스키마 - 최적화된 구조"""
     score: float
@@ -116,7 +104,6 @@ class AIAnalysisResponse(BaseModel):
     one_line: str
     summary: List[str]
     risk: str
-    metric_insights: MetricInsights
 
     class Config:
         json_schema_extra = {
@@ -129,15 +116,7 @@ class AIAnalysisResponse(BaseModel):
                     "지속적인 혁신과 R&D 투자",
                     "건전한 재무 지표"
                 ],
-                "risk": "시장 변동성과 경쟁 심화",
-                "metric_insights": {
-                    "per": "PER 30.5배는 업계 평균 대비 다소 높은 편",
-                    "pbr": "PBR 1.5배는 적정 수준",
-                    "roe": "ROE 18.5%는 우수한 자본 효율성",
-                    "eps": "EPS $5.40은 견조한 이익 창출력",
-                    "debt_ratio": "부채비율 45%로 안정적",
-                    "target_gap": "목표가 대비 8% 상승 여력"
-                }
+                "risk": "시장 변동성과 경쟁 심화"
             }
         }
 

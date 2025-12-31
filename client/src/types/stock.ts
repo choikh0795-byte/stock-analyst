@@ -50,15 +50,6 @@ export interface StockInfo {
   number_of_analyst_opinions?: number | null
   peg_ratio?: number | null
   beta?: number | null
-  // 지표별 AI 인사이트 (6개 독립 지표)
-  metric_insights?: {
-    per: string             // PER 지표 분석
-    pbr: string             // PBR 지표 분석
-    roe: string             // ROE 지표 분석
-    eps: string             // EPS 지표 분석
-    debt_ratio: string      // 부채비율 분석
-    target_gap: string      // 목표가 괴리율 분석
-  } | null
 }
 
 export interface AIAnalysis {
@@ -67,14 +58,6 @@ export interface AIAnalysis {
   one_line: string
   summary: string[]
   risk: string
-  metric_insights: {
-    per: string             // PER 지표 분석
-    pbr: string             // PBR 지표 분석
-    roe: string             // ROE 지표 분석
-    eps: string             // EPS 지표 분석
-    debt_ratio: string      // 부채비율 분석
-    target_gap: string      // 목표가 괴리율 분석
-  }
 }
 
 export interface StockAnalysisRequest {
