@@ -189,7 +189,7 @@ class StockFormatter:
     def get_change_status(current_price: float, previous_close: float) -> Literal["RISING", "FALLING", "NEUTRAL"]:
         """
         가격 변동 상태 판단
-        
+
         - RISING: 상승 (current_price > previous_close)
         - FALLING: 하락 (current_price < previous_close)
         - NEUTRAL: 동일 (current_price == previous_close)
@@ -200,4 +200,77 @@ class StockFormatter:
             return "FALLING"
         else:
             return "NEUTRAL"
+
+    @staticmethod
+    def format_expense_ratio(expense_ratio: Optional[float]) -> str:
+        """
+        ETF 운용보수 포맷팅
+
+        - None이면 "N/A"
+        - 소수점 2자리 + "%" (예: 0.03%)
+        """
+        if expense_ratio is None:
+            return "N/A"
+        return f"{expense_ratio:.2f}%"
+
+    @staticmethod
+    def format_total_assets(total_assets: Optional[float], is_korean: bool = False) -> str:
+        """
+        ETF 순자산(AUM) 포맷팅
+
+        - None이면 "N/A"
+        - 억/조 단위로 변환 (한국)
+        - Million/Billion 단위로 변환 (미국)
+        """
+        if total_assets is None or total_assets == 0:
+            return "N/A"
+
+        if is_korean:
+            # 한국: 조/억 단위
+            trillion = 1_000_000_000_000  # 1조 (KRW)
+            hundred_million = 100_000_000  # 1억 (KRW)
+
+            if total_assets >= trillion:
+                return f"{total_assets / trillion:.1f}조원"
+            elif total_assets >= hundred_million:
+                return f"{total_assets / hundred_million:.0f}억원"
+            else:
+                return f"{int(total_assets):,}원"
+        else:
+            # 미국: Billion/Million 단위
+            billion = 1_000_000_000
+            million = 1_000_000
+
+            if total_assets >= billion:
+                return f"${total_assets / billion:.1f}B"
+            elif total_assets >= million:
+                return f"${total_assets / million:.0f}M"
+            else:
+                return f"${int(total_assets):,}"
+
+    @staticmethod
+    def format_premium_discount(premium_discount: Optional[float]) -> str:
+        """
+        ETF 괴리율 포맷팅
+
+        - None이면 "N/A"
+        - 양수면 "+" 기호 포함 (프리미엄, 예: +0.5%)
+        - 음수면 "-" 기호 포함 (디스카운트, 예: -0.3%)
+        """
+        if premium_discount is None:
+            return "N/A"
+        sign = "+" if premium_discount >= 0 else ""
+        return f"{sign}{premium_discount:.2f}%"
+
+    @staticmethod
+    def format_inception_date(inception_date: Optional[str]) -> str:
+        """
+        ETF 설정일 포맷팅
+
+        - None이면 "N/A"
+        - "YYYY-MM-DD" 형식 그대로 반환
+        """
+        if not inception_date:
+            return "N/A"
+        return inception_date
 

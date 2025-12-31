@@ -3,15 +3,16 @@ from typing import Optional, List, Dict
 
 
 class StockInfo(BaseModel):
-    """주식 기본 정보 스키마"""
+    """자산(주식/ETF) 기본 정보 스키마"""
     name: str
     symbol: str
+    asset_type: Optional[str] = "STOCK"  # "STOCK" or "ETF"
     current_price: float
     previous_close: Optional[float] = None
     market_cap: Optional[str] = None
     pe_ratio: Optional[float] = None
     pb_ratio: Optional[float] = None
-    # ROE/EPS/부채비율 (백엔드 계산 결과)
+    # ROE/EPS/부채비율 (백엔드 계산 결과, 주식 전용)
     roe: Optional[float] = None
     roe_str: Optional[str] = None
     eps: Optional[float] = None
@@ -21,7 +22,7 @@ class StockInfo(BaseModel):
     # 구버전 호환 필드
     return_on_equity: Optional[float] = None
     sector: str
-    industry: Optional[str] = None  # AI 분석을 위한 산업 정보
+    industry: Optional[str] = None  # AI 분석을 위한 산업/테마 정보
     summary: str
     # 6가지 핵심 지표
     fifty_two_week_low: Optional[float] = None
@@ -51,6 +52,18 @@ class StockInfo(BaseModel):
     target_upside: Optional[float] = None
     target_upside_str: Optional[str] = None
     currency: Optional[str] = None
+    # ETF 전용 필드
+    expense_ratio: Optional[float] = None  # 운용보수 (%)
+    expense_ratio_str: Optional[str] = None
+    total_assets: Optional[float] = None  # 순자산 (AUM)
+    total_assets_str: Optional[str] = None
+    premium_discount: Optional[float] = None  # 괴리율 (%)
+    premium_discount_str: Optional[str] = None
+    dividend_yield: Optional[float] = None  # 배당수익률 (%)
+    dividend_yield_str: Optional[str] = None
+    inception_date: Optional[str] = None  # 설정일
+    inception_date_str: Optional[str] = None
+    top_holdings: Optional[List[str]] = None  # 구성종목 Top3
 
     class Config:
         json_schema_extra = {

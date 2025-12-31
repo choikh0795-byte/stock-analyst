@@ -5,6 +5,7 @@
 export interface StockInfo {
   name: string
   symbol: string
+  asset_type?: 'STOCK' | 'ETF'  // 자산 타입
   current_price: number
   previous_close: number
   // 백엔드에서 포맷팅된 가격 문자열 (완성된 문자열)
@@ -31,7 +32,7 @@ export interface StockInfo {
   currency?: string
   pe_ratio?: number | null
   pb_ratio?: number | null
-  // 백엔드 계산된 ROE/EPS/부채비율 (신규)
+  // 백엔드 계산된 ROE/EPS/부채비율 (주식 전용)
   roe?: number | null
   roe_str?: string | null
   eps?: number | null
@@ -50,6 +51,18 @@ export interface StockInfo {
   number_of_analyst_opinions?: number | null
   peg_ratio?: number | null
   beta?: number | null
+  // ETF 전용 필드
+  expense_ratio?: number | null  // 운용보수 (%)
+  expense_ratio_str?: string | null
+  total_assets?: number | null  // 순자산 (AUM)
+  total_assets_str?: string | null
+  premium_discount?: number | null  // 괴리율 (%)
+  premium_discount_str?: string | null
+  dividend_yield?: number | null  // 배당수익률 (%)
+  dividend_yield_str?: string | null
+  inception_date?: string | null  // 설정일
+  inception_date_str?: string | null
+  top_holdings?: string[]  // 구성종목 Top3
 }
 
 export interface AIAnalysis {
