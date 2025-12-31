@@ -75,35 +75,31 @@ export const PriceRangeBar: React.FC<PriceRangeBarProps> = ({
       </div>
 
       {/* Progress Bar - 시각적 막대바 */}
-      {/* 상하 좌우 패딩 추가하여 말풍선 공간 확보 */}
-      <div className="relative w-full py-8 px-2 mb-3">
+      {/* 상하 패딩 추가하여 말풍선 공간 확보 */}
+      <div className="relative w-full py-8 mb-3">
         {/* 실제 막대바 컨테이너 */}
-        <div className="relative w-full h-10 bg-slate-200 rounded-full overflow-hidden">
+        <div className="relative w-full h-10 bg-slate-200 rounded-full overflow-visible">
           {/* 배경 그라데이션 (최저가에서 최고가로) */}
           <div
-            className="absolute inset-0 bg-gradient-to-r from-blue-200 via-slate-200 to-red-200"
+            className="absolute inset-0 bg-gradient-to-r from-blue-200 via-slate-200 to-red-200 rounded-full"
             style={{ width: '100%' }}
           />
-        </div>
 
-        {/* 현재가 마커 - 점 표시 (막대바 중앙에 절대 위치) */}
-        <div
-          className={`absolute rounded-full border-2 z-10 transition-all duration-300 ${
-            isNewHigh
-              ? 'w-5 h-5 bg-red-500 border-red-300 shadow-[0_0_12px_rgba(239,68,68,0.6)] animate-pulse'
-              : isNewLow
-              ? 'w-5 h-5 bg-blue-500 border-blue-300 shadow-[0_0_12px_rgba(59,130,246,0.6)]'
-              : 'w-4 h-4 bg-slate-900 border-white shadow-lg'
-          }`}
-          style={{
-            top: 'calc(2rem + 1.25rem)', // py-8 패딩(2rem) + 막대바 높이의 절반(h-10/2 = 1.25rem)
-            left: (() => {
-              const markerSize = isNewHigh || isNewLow ? 10 : 8 // 마커 반너비
-              return `calc(0.5rem + ${clampedPosition}% - ${markerSize}px)`
-            })(),
-            transform: 'translateY(-50%)',
-          }}
-        >
+          {/* 현재가 마커 - 점 표시 (막대바 중심에 절대 위치) */}
+          <div
+            className={`absolute rounded-full border-2 z-10 transition-all duration-300 ${
+              isNewHigh
+                ? 'w-5 h-5 bg-red-500 border-red-300 shadow-[0_0_12px_rgba(239,68,68,0.6)] animate-pulse'
+                : isNewLow
+                ? 'w-5 h-5 bg-blue-500 border-blue-300 shadow-[0_0_12px_rgba(59,130,246,0.6)]'
+                : 'w-4 h-4 bg-slate-900 border-white shadow-lg'
+            }`}
+            style={{
+              top: '50%',
+              left: `${clampedPosition}%`,
+              transform: 'translate(-50%, -50%)',
+            }}
+          >
           {/* 마커 위에 현재가 표시 - 위치 동적 조정 */}
           <div
             className="absolute -top-12 whitespace-nowrap transition-all duration-300"
