@@ -169,6 +169,20 @@ class StockService:
         else:
             market_cap_str_value = None
         
+        # ETF 전용 필드 추출 및 포맷팅
+        expense_ratio = info.get("expense_ratio")
+        total_assets = info.get("total_assets")
+        premium_discount = info.get("premium_discount")
+        dividend_yield = info.get("dividend_yield")
+        inception_date = info.get("inception_date")
+        top_holdings = info.get("top_holdings", [])
+
+        expense_ratio_str = self.formatter.format_expense_ratio(expense_ratio) if expense_ratio is not None else None
+        total_assets_str = self.formatter.format_total_assets(total_assets, is_korean) if total_assets is not None else None
+        premium_discount_str = self.formatter.format_premium_discount(premium_discount) if premium_discount is not None else None
+        dividend_yield_str = self.formatter.format_percentage(dividend_yield, 2) if dividend_yield is not None else None
+        inception_date_str = self.formatter.format_inception_date(inception_date) if inception_date is not None else None
+
         data = {
             "name": stock_name,
             "symbol": ticker,
@@ -211,6 +225,18 @@ class StockService:
             "roe": roe,
             "eps": eps,
             "debt_ratio": debt_ratio,
+            # ETF 전용 필드
+            "expense_ratio": expense_ratio,
+            "expense_ratio_str": expense_ratio_str,
+            "total_assets": total_assets,
+            "total_assets_str": total_assets_str,
+            "premium_discount": premium_discount,
+            "premium_discount_str": premium_discount_str,
+            "dividend_yield": dividend_yield,
+            "dividend_yield_str": dividend_yield_str,
+            "inception_date": inception_date,
+            "inception_date_str": inception_date_str,
+            "top_holdings": top_holdings,
         }
 
         # market_cap 타입 최종 확인 및 강제 변환
@@ -222,20 +248,40 @@ class StockService:
                     logger.error(f"market_cap 강제 변환 실패: {e}")
                     data['market_cap'] = None
 
-        # 점수 계산 (가중치 기반 알고리즘)
-        # beta는 표준화된 딕셔너리에서 가져오거나, calculator 형식으로 변환된 딕셔너리에서 가져옴
-        calc_info = self._convert_to_calculator_format(info)
-        calc_beta = calc_info.get("beta") or beta
-        score = self.calculator.calculate_score(
-            stock_data=data,
-            roe=roe,
-            pe_ratio=pe_ratio,
-            pb_ratio=pb_ratio,
-            market_cap=market_cap,
-            beta=calc_beta,
-            info=calc_info,
-        )
+        # 자산 타입 판별
+        asset_type = info.get("asset_type", "STOCK")
+
+        # 점수 계산 (자산 타입별 알고리즘)
+        if asset_type == "ETF":
+            # ETF 점수 계산
+            expense_ratio = info.get("expense_ratio")
+            premium_discount = info.get("premium_discount")
+            total_assets = info.get("total_assets")
+
+            score = self.calculator.calculate_etf_score(
+                stock_data=data,
+                expense_ratio=expense_ratio,
+                premium_discount=premium_discount,
+                total_assets=total_assets,
+            )
+            logger.info(f"[StockService] ETF 점수 계산 완료: {score}")
+        else:
+            # 주식 점수 계산 (기존 로직)
+            calc_info = self._convert_to_calculator_format(info)
+            calc_beta = calc_info.get("beta") or beta
+            score = self.calculator.calculate_score(
+                stock_data=data,
+                roe=roe,
+                pe_ratio=pe_ratio,
+                pb_ratio=pb_ratio,
+                market_cap=market_cap,
+                beta=calc_beta,
+                info=calc_info,
+            )
+            logger.info(f"[StockService] 주식 점수 계산 완료: {score}")
+
         data["score"] = score
+        data["asset_type"] = asset_type
 
         # 한국 종목명 (KIS 마스터 기준) 매핑 시도
         korean_stock_name: Optional[str] = None

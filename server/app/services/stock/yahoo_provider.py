@@ -5,6 +5,8 @@ import requests
 import yfinance as yf
 
 from .base_provider import BaseStockProvider
+from .asset_type import AssetType, AssetTypeDetector
+from .etf_calculator import ETFCalculator
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +22,7 @@ class YahooStockProvider(BaseStockProvider):
     def __init__(self) -> None:
         """YahooStockProvider 초기화"""
         super().__init__()
+        self._etf_calculator = ETFCalculator()
 
     def _get_ticker(self, ticker: str):
         """
@@ -215,53 +218,120 @@ class YahooStockProvider(BaseStockProvider):
 
     def get_stock_info(self, ticker: str) -> Dict:
         """
-        Yahoo Finance API를 통해 주식 정보를 가져와 표준화된 딕셔너리로 반환합니다.
-        
+        Yahoo Finance API를 통해 자산(주식/ETF) 정보를 가져와 표준화된 딕셔너리로 반환합니다.
+
+        자산 타입별 처리:
+        - STOCK: 기존 주식 지표 (PER, PBR, ROE, EPS, 부채비율, 목표가)
+        - ETF: ETF 전용 지표 (운용보수, 순자산, 괴리율, 배당수익률, 설정일)
+
         Args:
-            ticker: 주식 티커 심볼 (예: "005930.KS", "AAPL")
-            
+            ticker: 자산 티커 심볼 (예: "005930.KS", "AAPL", "SPY")
+
         Returns:
-            Dict: 표준화된 주식 정보 딕셔너리
+            Dict: 표준화된 자산 정보 딕셔너리 (asset_type 필드 포함)
         """
         stock = self._get_ticker(ticker)
         info = self._get_info(stock)
-        
+
         current_price = self._calculate_current_price(info, stock)
-        
+
+        # 자산 타입 판별
+        asset_type = AssetTypeDetector.detect_from_info(info)
+
         # 표준화된 딕셔너리 생성
         is_korean = ticker.upper().endswith((".KS", ".KQ"))
         currency = "KRW" if is_korean else "USD"
-        
-        # EPS 계산
-        eps = self._calculate_eps(info, current_price)
-        
-        # ROE 변환 (% 단위로)
-        roe = info.get("returnOnEquity")
-        roe_percent = None
-        if roe is not None:
-            try:
-                roe_percent = float(roe) * 100
-            except (ValueError, TypeError):
-                pass
 
-        return {
+        # 기본 정보 (공통)
+        result = {
             "name": info.get("shortName") or info.get("longName") or ticker,
             "symbol": ticker,
+            "asset_type": asset_type.value,  # "STOCK" or "ETF"
             "current_price": current_price,
             "previous_close": info.get("previousClose"),
             "market_cap": info.get("marketCap"),
-            "pe_ratio": info.get("trailingPE") or info.get("forwardPE"),
-            "pb_ratio": info.get("priceToBook"),
-            "eps": eps,
-            "roe": roe_percent,
             "fifty_two_week_low": info.get("fiftyTwoWeekLow"),
             "fifty_two_week_high": info.get("fiftyTwoWeekHigh"),
-            "target_mean_price": info.get("targetMeanPrice"),
             "sector": info.get("sector"),
             "industry": info.get("industry"),
             "summary": info.get("longBusinessSummary"),
             "currency": currency,
         }
+
+        # 자산 타입별 지표 추가
+        if asset_type == AssetType.ETF:
+            # ETF 전용 지표
+            logger.info(f"[YahooStockProvider] ETF 감지: {ticker}, ETF 지표 추출 시작")
+
+            # 운용보수
+            expense_ratio = self._etf_calculator.extract_expense_ratio(info)
+            result["expense_ratio"] = expense_ratio
+
+            # 순자산 (AUM)
+            total_assets = self._etf_calculator.extract_total_assets(info)
+            result["total_assets"] = total_assets
+
+            # 배당수익률
+            dividend_yield = self._etf_calculator.extract_dividend_yield(info)
+            result["dividend_yield"] = dividend_yield
+
+            # 괴리율 계산 (NAV vs 시장가)
+            nav_price = self._etf_calculator.extract_nav_price(info)
+            premium_discount = self._etf_calculator.calculate_premium_discount(current_price, nav_price)
+            result["nav_price"] = nav_price
+            result["premium_discount"] = premium_discount
+
+            # 설정일
+            inception_date = self._etf_calculator.extract_inception_date(info)
+            result["inception_date"] = inception_date
+
+            # 구성종목 Top3 (현재 Yahoo에서 제공하지 않으므로 빈 리스트)
+            top_holdings = self._etf_calculator.extract_top_holdings(info, limit=3)
+            result["top_holdings"] = top_holdings
+
+            # ETF는 PER, PBR, EPS, ROE, 부채비율, 목표가가 없으므로 None 처리
+            result["pe_ratio"] = None
+            result["pb_ratio"] = None
+            result["eps"] = None
+            result["roe"] = None
+            result["debt_ratio"] = None
+            result["target_mean_price"] = None
+
+            logger.info(f"[YahooStockProvider] ETF 지표 추출 완료: {ticker}")
+
+        else:
+            # 주식 지표 (기존 로직)
+            logger.info(f"[YahooStockProvider] 주식 감지: {ticker}, 주식 지표 추출 시작")
+
+            # EPS 계산
+            eps = self._calculate_eps(info, current_price)
+            result["eps"] = eps
+
+            # ROE 변환 (% 단위로)
+            roe = info.get("returnOnEquity")
+            roe_percent = None
+            if roe is not None:
+                try:
+                    roe_percent = float(roe) * 100
+                except (ValueError, TypeError):
+                    pass
+            result["roe"] = roe_percent
+
+            # 주식 전용 지표
+            result["pe_ratio"] = info.get("trailingPE") or info.get("forwardPE")
+            result["pb_ratio"] = info.get("priceToBook")
+            result["target_mean_price"] = info.get("targetMeanPrice")
+
+            # ETF 필드는 None 처리
+            result["expense_ratio"] = None
+            result["total_assets"] = None
+            result["dividend_yield"] = None
+            result["nav_price"] = None
+            result["premium_discount"] = None
+            result["inception_date"] = None
+            result["top_holdings"] = []
+
+        return result
 
     def get_financial_data_only(self, ticker: str) -> Dict:
         """

@@ -731,3 +731,183 @@ class StockCalculator:
         
         return round(total_score, 1)
 
+    def _score_etf_cost_efficiency(self, expense_ratio: Optional[float]) -> float:
+        """
+        ETF 비용 효율성 점수 계산 (가중치 40%)
+
+        운용보수가 낮을수록 높은 점수
+
+        Args:
+            expense_ratio: 운용보수 (%, 예: 0.03 = 0.03%)
+
+        Returns:
+            float: 0~100 사이의 점수
+        """
+        if expense_ratio is None:
+            return 50.0  # 기본값 (Neutral)
+
+        # 운용보수 기준:
+        # 0.00~0.10%: 매우 우수 (100점)
+        # 0.10~0.30%: 우수 (80~100점)
+        # 0.30~0.50%: 보통 (60~80점)
+        # 0.50~1.00%: 평균 (40~60점)
+        # 1.00% 이상: 높음 (0~40점)
+
+        if expense_ratio <= 0.10:
+            score = 100.0
+        elif expense_ratio <= 0.30:
+            # 0.10~0.30: 선형 보간 (100~80점)
+            score = 100.0 - ((expense_ratio - 0.10) / 0.20) * 20.0
+        elif expense_ratio <= 0.50:
+            # 0.30~0.50: 선형 보간 (80~60점)
+            score = 80.0 - ((expense_ratio - 0.30) / 0.20) * 20.0
+        elif expense_ratio <= 1.00:
+            # 0.50~1.00: 선형 보간 (60~40점)
+            score = 60.0 - ((expense_ratio - 0.50) / 0.50) * 20.0
+        else:
+            # 1.00% 이상: 선형 감소 (40~0점)
+            score = max(0.0, 40.0 - ((expense_ratio - 1.00) / 1.00) * 20.0)
+
+        logger.info(f"[Calculation] ETF 비용 효율성 점수: {score:.1f} (운용보수: {expense_ratio:.2f}%)")
+        return round(score, 1)
+
+    def _score_etf_tracking_stability(self, premium_discount: Optional[float]) -> float:
+        """
+        ETF 괴리율 안정성 점수 계산 (가중치 30%)
+
+        괴리율이 0%에 가까울수록 높은 점수
+
+        Args:
+            premium_discount: 괴리율 (%, 양수=프리미엄, 음수=디스카운트)
+
+        Returns:
+            float: 0~100 사이의 점수
+        """
+        if premium_discount is None:
+            return 50.0  # 기본값 (Neutral)
+
+        # 괴리율 절대값 기준:
+        # 0.00~0.50%: 매우 우수 (100점)
+        # 0.50~1.00%: 우수 (80~100점)
+        # 1.00~2.00%: 보통 (60~80점)
+        # 2.00~5.00%: 평균 (40~60점)
+        # 5.00% 이상: 높음 (0~40점)
+
+        abs_premium = abs(premium_discount)
+
+        if abs_premium <= 0.50:
+            score = 100.0
+        elif abs_premium <= 1.00:
+            # 0.50~1.00: 선형 보간 (100~80점)
+            score = 100.0 - ((abs_premium - 0.50) / 0.50) * 20.0
+        elif abs_premium <= 2.00:
+            # 1.00~2.00: 선형 보간 (80~60점)
+            score = 80.0 - ((abs_premium - 1.00) / 1.00) * 20.0
+        elif abs_premium <= 5.00:
+            # 2.00~5.00: 선형 보간 (60~40점)
+            score = 60.0 - ((abs_premium - 2.00) / 3.00) * 20.0
+        else:
+            # 5.00% 이상: 선형 감소 (40~0점)
+            score = max(0.0, 40.0 - ((abs_premium - 5.00) / 5.00) * 20.0)
+
+        logger.info(f"[Calculation] ETF 괴리율 안정성 점수: {score:.1f} (괴리율: {premium_discount:.2f}%)")
+        return round(score, 1)
+
+    def _score_etf_size_stability(self, total_assets: Optional[float]) -> float:
+        """
+        ETF 규모 안정성 점수 계산 (가중치 10%)
+
+        순자산(AUM)이 클수록 높은 점수
+
+        Args:
+            total_assets: 순자산 (달러/원화)
+
+        Returns:
+            float: 0~100 사이의 점수
+        """
+        if total_assets is None or total_assets <= 0:
+            return 50.0  # 기본값 (Neutral)
+
+        # 순자산 기준 (달러 기준):
+        # $10B 이상: 매우 우수 (100점)
+        # $1B~$10B: 우수 (80~100점)
+        # $100M~$1B: 보통 (60~80점)
+        # $10M~$100M: 평균 (40~60점)
+        # $10M 미만: 낮음 (0~40점)
+
+        billion = 1_000_000_000
+        million = 1_000_000
+
+        if total_assets >= 10 * billion:
+            score = 100.0
+        elif total_assets >= 1 * billion:
+            # $1B~$10B: 선형 보간 (80~100점)
+            score = 80.0 + ((total_assets - 1 * billion) / (9 * billion)) * 20.0
+        elif total_assets >= 100 * million:
+            # $100M~$1B: 선형 보간 (60~80점)
+            score = 60.0 + ((total_assets - 100 * million) / (900 * million)) * 20.0
+        elif total_assets >= 10 * million:
+            # $10M~$100M: 선형 보간 (40~60점)
+            score = 40.0 + ((total_assets - 10 * million) / (90 * million)) * 20.0
+        else:
+            # $10M 미만: 선형 보간 (0~40점)
+            score = (total_assets / (10 * million)) * 40.0
+
+        logger.info(f"[Calculation] ETF 규모 안정성 점수: {score:.1f} (순자산: ${total_assets:,.0f})")
+        return round(score, 1)
+
+    def calculate_etf_score(
+        self,
+        stock_data: Dict,
+        expense_ratio: Optional[float] = None,
+        premium_discount: Optional[float] = None,
+        total_assets: Optional[float] = None,
+    ) -> float:
+        """
+        ETF 종합 투자 점수 계산 (가중치 기반 알고리즘)
+
+        점수 산정 공식:
+        Total = (비용 효율성 * 0.4) + (괴리율 안정성 * 0.3) + (모멘텀 * 0.2) + (규모 안정성 * 0.1)
+
+        Args:
+            stock_data: ETF 정보 딕셔너리 (current_price, fifty_two_week_low, fifty_two_week_high 등 포함)
+            expense_ratio: 운용보수 (%, 예: 0.03)
+            premium_discount: 괴리율 (%, 양수=프리미엄, 음수=디스카운트)
+            total_assets: 순자산 (달러/원화)
+
+        Returns:
+            float: 0~100 사이의 점수 (소수점 첫째 자리까지)
+        """
+        # 각 영역별 점수 계산
+        cost_efficiency_score = self._score_etf_cost_efficiency(expense_ratio)
+        tracking_stability_score = self._score_etf_tracking_stability(premium_discount)
+
+        # 모멘텀 점수 (주식과 동일한 로직)
+        current_price = stock_data.get("current_price", 0)
+        fifty_two_week_low = stock_data.get("fifty_two_week_low")
+        fifty_two_week_high = stock_data.get("fifty_two_week_high")
+        momentum_score = self._score_momentum(current_price, fifty_two_week_low, fifty_two_week_high)
+
+        # 규모 안정성 점수
+        size_stability_score = self._score_etf_size_stability(total_assets)
+
+        # 가중치 합산
+        total_score = (
+            (cost_efficiency_score * 0.4)
+            + (tracking_stability_score * 0.3)
+            + (momentum_score * 0.2)
+            + (size_stability_score * 0.1)
+        )
+
+        # 0~100 범위로 제한
+        total_score = max(0.0, min(100.0, total_score))
+
+        logger.info(
+            f"[Calculation] ETF 점수 계산 완료: "
+            f"비용={cost_efficiency_score}, 괴리율={tracking_stability_score}, "
+            f"모멘텀={momentum_score}, 규모={size_stability_score}, "
+            f"종합={total_score:.1f}"
+        )
+
+        return round(total_score, 1)
+
