@@ -44,8 +44,8 @@ export const PriceRangeBar: React.FC<PriceRangeBarProps> = ({
 
   // 현재가가 범위 내에 있는지 확인
   const isInRange = current >= low && current <= high
-  const isNewHigh = current > high  // 52주 신고가 돌파
-  const isNewLow = current < low    // 52주 신저가
+  const isNewHigh = current >= high  // 52주 신고가 도달/돌파
+  const isNewLow = current < low     // 52주 신저가
 
   // 점 위치를 0~100% 범위로 제한 (항상 바 안에 표시)
   const clampedPosition = Math.max(0, Math.min(100, position))
