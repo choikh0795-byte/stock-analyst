@@ -180,14 +180,14 @@ export const PriceRangeBar: React.FC<PriceRangeBarProps> = ({
       {isNewHigh && (
         <div className="text-center">
           <span className="text-xs sm:text-sm font-semibold text-red-600">
-            🚀 52주 최고가를 {((current - high) / high * 100).toFixed(1)}% 돌파했습니다
+            🚀 52주 최고가를 돌파했습니다
           </span>
         </div>
       )}
       {isNewLow && (
         <div className="text-center">
           <span className="text-xs sm:text-sm font-semibold text-blue-600">
-            📉 52주 최저가 대비 {((low - current) / low * 100).toFixed(1)}% 하락했습니다
+            📉 52주 최저가를 기록했습니다
           </span>
         </div>
       )}

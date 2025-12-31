@@ -3,7 +3,7 @@ import openai
 import json
 import logging
 from pydantic import BaseModel
-from app.schemas.stock import AIAnalysisResponse, MetricInsights
+from app.schemas.stock import AIAnalysisResponse
 
 logger = logging.getLogger(__name__)
 
