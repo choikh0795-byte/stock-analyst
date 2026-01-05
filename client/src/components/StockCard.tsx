@@ -3,7 +3,7 @@ import type { StockInfo, AIAnalysis } from '../types/stock'
 import { getSignalColor } from '../utils/stockUtils'
 import { PriceRangeBar } from './PriceRangeBar'
 import { MetricModal } from './MetricModal'
-import { Tag, Building2, TrendingUp, Coins, DollarSign, Target, ChevronRight, CheckCircle2, Wallet, Building, BarChart3, Gift, Calendar, TrendingUp as TrendingUpIcon } from 'lucide-react'
+import { Tag, Building2, TrendingUp, Coins, DollarSign, Target, ChevronRight, CheckCircle2, Wallet, Building, BarChart3, Gift, Calendar, TrendingUp as TrendingUpIcon, Activity, BarChart2 } from 'lucide-react'
 
 interface StockCardProps {
   data: StockInfo
@@ -91,34 +91,40 @@ export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
   // 지표 상태 판단 함수 (ETF용)
   const getETFMetricStatus = (key: string, value: number | null): { status: string; badgeClass: string } => {
     switch (key) {
-      case 'expense_ratio':
-        if (value === null) return { status: 'N/A', badgeClass: 'bg-slate-100 text-slate-600' }
-        if (value <= 0.10) return { status: '초저비용', badgeClass: 'bg-emerald-100 text-emerald-700' }
-        if (value <= 0.30) return { status: '저비용', badgeClass: 'bg-emerald-100 text-emerald-700' }
-        if (value <= 0.50) return { status: '적정', badgeClass: 'bg-slate-100 text-slate-600' }
-        return { status: '비쌈', badgeClass: 'bg-rose-100 text-rose-700' }
       case 'total_assets':
         if (value === null) return { status: 'N/A', badgeClass: 'bg-slate-100 text-slate-600' }
         if (value >= 10_000_000_000) return { status: '대형', badgeClass: 'bg-emerald-100 text-emerald-700' }
         if (value >= 1_000_000_000) return { status: '중형', badgeClass: 'bg-slate-100 text-slate-600' }
         return { status: '소형', badgeClass: 'bg-amber-100 text-amber-700' }
+      case 'dividend_yield':
+        if (value === null) return { status: 'N/A', badgeClass: 'bg-slate-100 text-slate-600' }
+        if (value >= 5) return { status: '고배당', badgeClass: 'bg-emerald-100 text-emerald-700' }
+        if (value >= 2) return { status: '적정', badgeClass: 'bg-slate-100 text-slate-600' }
+        return { status: '저배당', badgeClass: 'bg-slate-100 text-slate-600' }
       case 'premium_discount':
         if (value === null) return { status: 'N/A', badgeClass: 'bg-slate-100 text-slate-600' }
         const absValue = Math.abs(value)
         if (absValue <= 0.50) return { status: '우수', badgeClass: 'bg-emerald-100 text-emerald-700' }
         if (absValue <= 1.00) return { status: '양호', badgeClass: 'bg-slate-100 text-slate-600' }
         return { status: '주의', badgeClass: 'bg-amber-100 text-amber-700' }
-      case 'dividend_yield':
-        if (value === null) return { status: 'N/A', badgeClass: 'bg-slate-100 text-slate-600' }
-        if (value >= 5) return { status: '고배당', badgeClass: 'bg-emerald-100 text-emerald-700' }
-        if (value >= 2) return { status: '적정', badgeClass: 'bg-slate-100 text-slate-600' }
-        return { status: '저배당', badgeClass: 'bg-slate-100 text-slate-600' }
       case 'inception_date':
         // 날짜는 상태 뱃지 불필요
         return { status: '데이터', badgeClass: 'bg-slate-100 text-slate-600' }
-      case 'top_holdings':
-        // 구성종목은 상태 뱃지 불필요
-        return { status: '데이터', badgeClass: 'bg-slate-100 text-slate-600' }
+      case 'average_volume':
+        if (value === null) return { status: 'N/A', badgeClass: 'bg-slate-100 text-slate-600' }
+        // 거래량이 많을수록 유동성 좋음
+        if (value >= 1_000_000) return { status: '매우 우수', badgeClass: 'bg-emerald-100 text-emerald-700' }
+        if (value >= 100_000) return { status: '우수', badgeClass: 'bg-emerald-100 text-emerald-700' }
+        if (value >= 10_000) return { status: '보통', badgeClass: 'bg-slate-100 text-slate-600' }
+        return { status: '낮음', badgeClass: 'bg-amber-100 text-amber-700' }
+      case 'change_52week':
+        if (value === null) return { status: 'N/A', badgeClass: 'bg-slate-100 text-slate-600' }
+        // 52주 수익률: 양수면 상승, 음수면 하락
+        if (value >= 20) return { status: '매우 우수', badgeClass: 'bg-emerald-100 text-emerald-700' }
+        if (value >= 10) return { status: '우수', badgeClass: 'bg-emerald-100 text-emerald-700' }
+        if (value >= 0) return { status: '보통', badgeClass: 'bg-slate-100 text-slate-600' }
+        if (value >= -10) return { status: '주의', badgeClass: 'bg-amber-100 text-amber-700' }
+        return { status: '부진', badgeClass: 'bg-rose-100 text-rose-700' }
       default:
         return { status: 'N/A', badgeClass: 'bg-slate-100 text-slate-600' }
     }
@@ -129,28 +135,12 @@ export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
     ? [
         // ETF 전용 지표 (6개)
         {
-          key: 'expense_ratio',
-          label: '운용보수',
-          value: data.expense_ratio_str ?? 'N/A',
-          numericValue: toNumber(data.expense_ratio),
-          status: getETFMetricStatus('expense_ratio', toNumber(data.expense_ratio)),
-          Icon: Wallet,
-        },
-        {
           key: 'total_assets',
-          label: '순자산',
+          label: '순자산 (AUM)',
           value: data.total_assets_str ?? 'N/A',
           numericValue: toNumber(data.total_assets),
           status: getETFMetricStatus('total_assets', toNumber(data.total_assets)),
           Icon: Building,
-        },
-        {
-          key: 'premium_discount',
-          label: '괴리율',
-          value: data.premium_discount_str ?? 'N/A',
-          numericValue: toNumber(data.premium_discount),
-          status: getETFMetricStatus('premium_discount', toNumber(data.premium_discount)),
-          Icon: BarChart3,
         },
         {
           key: 'dividend_yield',
@@ -161,6 +151,14 @@ export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
           Icon: Gift,
         },
         {
+          key: 'premium_discount',
+          label: '괴리율',
+          value: data.premium_discount_str ?? 'N/A',
+          numericValue: toNumber(data.premium_discount),
+          status: getETFMetricStatus('premium_discount', toNumber(data.premium_discount)),
+          Icon: BarChart3,
+        },
+        {
           key: 'inception_date',
           label: '설정일',
           value: data.inception_date_str ?? 'N/A',
@@ -169,14 +167,20 @@ export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
           Icon: Calendar,
         },
         {
-          key: 'top_holdings',
-          label: '주요 구성종목',
-          value: (data.top_holdings && data.top_holdings.length > 0)
-            ? data.top_holdings.join(', ')
-            : 'N/A',
-          numericValue: null,
-          status: getETFMetricStatus('top_holdings', null),
-          Icon: TrendingUpIcon,
+          key: 'average_volume',
+          label: '평균 거래량',
+          value: data.average_volume_str ?? 'N/A',
+          numericValue: toNumber(data.average_volume),
+          status: getETFMetricStatus('average_volume', toNumber(data.average_volume)),
+          Icon: Activity,
+        },
+        {
+          key: 'change_52week',
+          label: '52주 수익률',
+          value: data.change_52week_str ?? 'N/A',
+          numericValue: toNumber(data.change_52week),
+          status: getETFMetricStatus('change_52week', toNumber(data.change_52week)),
+          Icon: BarChart2,
         },
       ]
     : [

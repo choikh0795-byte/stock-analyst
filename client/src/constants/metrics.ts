@@ -8,7 +8,7 @@ export interface MetricDefinition {
   definition: string
   summary?: string
   tip?: string
-  key: 'pe_ratio' | 'pb_ratio' | 'roe' | 'return_on_equity' | 'debt_ratio' | 'beta' | 'eps' | 'target_mean_price' | 'expense_ratio' | 'total_assets' | 'premium_discount' | 'dividend_yield' | 'inception_date'
+  key: 'pe_ratio' | 'pb_ratio' | 'roe' | 'return_on_equity' | 'debt_ratio' | 'beta' | 'eps' | 'target_mean_price' | 'expense_ratio' | 'total_assets' | 'premium_discount' | 'dividend_yield' | 'inception_date' | 'average_volume' | 'change_52week'
 }
 
 export const METRIC_DEFINITIONS: Record<string, MetricDefinition> = {
@@ -109,6 +109,22 @@ export const METRIC_DEFINITIONS: Record<string, MetricDefinition> = {
     summary: 'ETF가 처음 설정된 날짜야. 오래될수록 운용 이력이 풍부해.',
     tip: '3년 이상 운용된 ETF가 신뢰도가 높아. 신생 ETF는 추적 성과를 충분히 확인해봐.',
     key: 'inception_date',
+  },
+  average_volume: {
+    label: '평균 거래량',
+    icon: '📈',
+    definition: '유동성 지표로 사용되는 10일 평균 거래량이야. 거래량이 많을수록 매수·매도가 쉽고, 호가 스프레드가 좁아서 거래 비용이 적어. 유동성이 낮으면 원하는 가격에 사고팔기 어려울 수 있어.',
+    summary: '10일 평균 거래량이야. 많을수록 사고팔기 쉬워.',
+    tip: '거래량이 많을수록 유동성이 좋아. 거래량이 적으면 슬리피지(원하는 가격과 실제 체결 가격 차이)가 클 수 있어.',
+    key: 'average_volume',
+  },
+  change_52week: {
+    label: '52주 수익률',
+    icon: '📊',
+    definition: '최근 52주(1년) 동안의 가격 변동률을 나타내는 수익률 지표야. 양수면 1년간 상승했고, 음수면 하락했다는 뜻이야. 중장기 추세를 파악하는 데 유용해.',
+    summary: '최근 1년간 가격 변동률이야. 중장기 추세를 보여줘.',
+    tip: '양수면 1년간 상승, 음수면 하락이야. 다만 과거 수익률이 미래를 보장하지는 않아.',
+    key: 'change_52week',
   },
 }
 
