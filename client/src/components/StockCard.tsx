@@ -3,7 +3,7 @@ import type { StockInfo, AIAnalysis } from '../types/stock'
 import { getSignalColor } from '../utils/stockUtils'
 import { PriceRangeBar } from './PriceRangeBar'
 import { MetricModal } from './MetricModal'
-import { Tag, Building2, TrendingUp, Coins, DollarSign, Target, ChevronRight, CheckCircle2 } from 'lucide-react'
+import { Tag, Building2, TrendingUp, Coins, DollarSign, Target, ChevronRight, CheckCircle2, Wallet, Building, BarChart3, Gift, Calendar } from 'lucide-react'
 
 interface StockCardProps {
   data: StockInfo
@@ -51,7 +51,7 @@ export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
   const epsLabel = data.eps_str ?? (epsValue !== null ? 'N/A' : 'N/A')
   const targetUpsideStr = data.target_upside_str ?? 'N/A'
 
-  // 지표 상태 판단 함수
+  // 지표 상태 판단 함수 (주식용)
   const getMetricStatus = (key: string, value: number | null): { status: string; badgeClass: string } => {
     switch (key) {
       case 'pe_ratio':
@@ -88,63 +88,135 @@ export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
     }
   }
 
-  // 6개 고정 지표 배열 생성 (항상 6개 표시, 값이 없으면 'N/A')
-  const metricCards = [
-    // 1. PER
-    {
-      key: 'pe_ratio',
-      label: 'PER',
-      value: peRatioStr,
-      numericValue: peRatio,
-      status: getMetricStatus('pe_ratio', peRatio),
-      Icon: Tag,
-    },
-    // 2. PBR
-    {
-      key: 'pb_ratio',
-      label: 'PBR',
-      value: pbRatioStr,
-      numericValue: pbRatio,
-      status: getMetricStatus('pb_ratio', pbRatio),
-      Icon: Building2,
-    },
-    // 3. ROE
-    {
-      key: 'roe',
-      label: 'ROE',
-      value: roeLabel,
-      numericValue: roePercent,
-      status: getMetricStatus('roe', roePercent),
-      Icon: TrendingUp,
-    },
-    // 4. 부채비율
-    {
-      key: 'debt_ratio',
-      label: '부채비율',
-      value: debtRatioStr,
-      numericValue: debtRatioRaw,
-      status: getMetricStatus('debt_ratio', debtRatioRaw),
-      Icon: Coins,
-    },
-    // 5. EPS (주당순이익)
-    {
-      key: 'eps',
-      label: 'EPS',
-      value: epsLabel,
-      numericValue: epsValue,
-      status: getMetricStatus('eps', epsValue),
-      Icon: DollarSign,
-    },
-    // 6. 목표가
-    {
-      key: 'target_mean_price',
-      label: '목표가',
-      value: targetUpsideStr,
-      numericValue: data.target_upside,
-      status: getMetricStatus('target_mean_price', data.target_upside),
-      Icon: Target,
-    },
-  ]
+  // 지표 상태 판단 함수 (ETF용)
+  const getETFMetricStatus = (key: string, value: number | null): { status: string; badgeClass: string } => {
+    switch (key) {
+      case 'expense_ratio':
+        if (value === null) return { status: 'N/A', badgeClass: 'bg-slate-100 text-slate-600' }
+        if (value <= 0.10) return { status: '초저비용', badgeClass: 'bg-emerald-100 text-emerald-700' }
+        if (value <= 0.30) return { status: '저비용', badgeClass: 'bg-emerald-100 text-emerald-700' }
+        if (value <= 0.50) return { status: '적정', badgeClass: 'bg-slate-100 text-slate-600' }
+        return { status: '비쌈', badgeClass: 'bg-rose-100 text-rose-700' }
+      case 'total_assets':
+        if (value === null) return { status: 'N/A', badgeClass: 'bg-slate-100 text-slate-600' }
+        if (value >= 10_000_000_000) return { status: '대형', badgeClass: 'bg-emerald-100 text-emerald-700' }
+        if (value >= 1_000_000_000) return { status: '중형', badgeClass: 'bg-slate-100 text-slate-600' }
+        return { status: '소형', badgeClass: 'bg-amber-100 text-amber-700' }
+      case 'premium_discount':
+        if (value === null) return { status: 'N/A', badgeClass: 'bg-slate-100 text-slate-600' }
+        const absValue = Math.abs(value)
+        if (absValue <= 0.50) return { status: '우수', badgeClass: 'bg-emerald-100 text-emerald-700' }
+        if (absValue <= 1.00) return { status: '양호', badgeClass: 'bg-slate-100 text-slate-600' }
+        return { status: '주의', badgeClass: 'bg-amber-100 text-amber-700' }
+      case 'dividend_yield':
+        if (value === null) return { status: 'N/A', badgeClass: 'bg-slate-100 text-slate-600' }
+        if (value >= 5) return { status: '고배당', badgeClass: 'bg-emerald-100 text-emerald-700' }
+        if (value >= 2) return { status: '적정', badgeClass: 'bg-slate-100 text-slate-600' }
+        return { status: '저배당', badgeClass: 'bg-slate-100 text-slate-600' }
+      case 'inception_date':
+        // 날짜는 상태 뱃지 불필요
+        return { status: '데이터', badgeClass: 'bg-slate-100 text-slate-600' }
+      default:
+        return { status: 'N/A', badgeClass: 'bg-slate-100 text-slate-600' }
+    }
+  }
+
+  // 자산 타입에 따라 다른 지표 표시 (주식 vs ETF)
+  const metricCards = data.asset_type === 'ETF'
+    ? [
+        // ETF 전용 지표 (5개)
+        {
+          key: 'expense_ratio',
+          label: '운용보수',
+          value: data.expense_ratio_str ?? 'N/A',
+          numericValue: toNumber(data.expense_ratio),
+          status: getETFMetricStatus('expense_ratio', toNumber(data.expense_ratio)),
+          Icon: Wallet,
+        },
+        {
+          key: 'total_assets',
+          label: '순자산',
+          value: data.total_assets_str ?? 'N/A',
+          numericValue: toNumber(data.total_assets),
+          status: getETFMetricStatus('total_assets', toNumber(data.total_assets)),
+          Icon: Building,
+        },
+        {
+          key: 'premium_discount',
+          label: '괴리율',
+          value: data.premium_discount_str ?? 'N/A',
+          numericValue: toNumber(data.premium_discount),
+          status: getETFMetricStatus('premium_discount', toNumber(data.premium_discount)),
+          Icon: BarChart3,
+        },
+        {
+          key: 'dividend_yield',
+          label: '배당수익률',
+          value: data.dividend_yield_str ?? 'N/A',
+          numericValue: toNumber(data.dividend_yield),
+          status: getETFMetricStatus('dividend_yield', toNumber(data.dividend_yield)),
+          Icon: Gift,
+        },
+        {
+          key: 'inception_date',
+          label: '설정일',
+          value: data.inception_date_str ?? 'N/A',
+          numericValue: null,
+          status: getETFMetricStatus('inception_date', null),
+          Icon: Calendar,
+        },
+      ]
+    : [
+        // 주식 전용 지표 (6개)
+        {
+          key: 'pe_ratio',
+          label: 'PER',
+          value: peRatioStr,
+          numericValue: peRatio,
+          status: getMetricStatus('pe_ratio', peRatio),
+          Icon: Tag,
+        },
+        {
+          key: 'pb_ratio',
+          label: 'PBR',
+          value: pbRatioStr,
+          numericValue: pbRatio,
+          status: getMetricStatus('pb_ratio', pbRatio),
+          Icon: Building2,
+        },
+        {
+          key: 'roe',
+          label: 'ROE',
+          value: roeLabel,
+          numericValue: roePercent,
+          status: getMetricStatus('roe', roePercent),
+          Icon: TrendingUp,
+        },
+        {
+          key: 'debt_ratio',
+          label: '부채비율',
+          value: debtRatioStr,
+          numericValue: debtRatioRaw,
+          status: getMetricStatus('debt_ratio', debtRatioRaw),
+          Icon: Coins,
+        },
+        {
+          key: 'eps',
+          label: 'EPS',
+          value: epsLabel,
+          numericValue: epsValue,
+          status: getMetricStatus('eps', epsValue),
+          Icon: DollarSign,
+        },
+        {
+          key: 'target_mean_price',
+          label: '목표가',
+          value: targetUpsideStr,
+          numericValue: data.target_upside,
+          status: getMetricStatus('target_mean_price', data.target_upside),
+          Icon: Target,
+        },
+      ]
 
   return (
     <div className="w-full max-w-2xl mx-auto">
@@ -248,7 +320,7 @@ export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
             {/* 섹션 2: 주요 지표 그리드 (Bento Style - 모바일 2열, 태블릿/PC 3열) */}
             <div className="pb-6 border-b border-slate-200">
               <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-4">
-                주요 지표
+                {data.asset_type === 'ETF' ? 'ETF 주요 지표' : '주요 지표'}
               </h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {metricCards.map((metric, index) => {

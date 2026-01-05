@@ -1,5 +1,5 @@
 /**
- * 주식 지표에 대한 초보자용 설명 상수
+ * 주식/ETF 지표에 대한 초보자용 설명 상수
  */
 
 export interface MetricDefinition {
@@ -8,7 +8,7 @@ export interface MetricDefinition {
   definition: string
   summary?: string
   tip?: string
-  key: 'pe_ratio' | 'pb_ratio' | 'roe' | 'return_on_equity' | 'debt_ratio' | 'beta' | 'eps' | 'target_mean_price'
+  key: 'pe_ratio' | 'pb_ratio' | 'roe' | 'return_on_equity' | 'debt_ratio' | 'beta' | 'eps' | 'target_mean_price' | 'expense_ratio' | 'total_assets' | 'premium_discount' | 'dividend_yield' | 'inception_date'
 }
 
 export const METRIC_DEFINITIONS: Record<string, MetricDefinition> = {
@@ -76,6 +76,47 @@ export const METRIC_DEFINITIONS: Record<string, MetricDefinition> = {
     summary: '애널리스트들이 예상하는 목표 주가를 평균낸 값이야.',
     tip: '현재가와 목표가 차이(업사이드)를 보고, 의견 수가 충분한지 함께 확인해봐. 어디까지나 참고용이니 기업 펀더멘털과 같이 판단해.',
     key: 'target_mean_price',
+  },
+  // ===== ETF 전용 지표 =====
+  expense_ratio: {
+    label: '운용보수',
+    icon: '💰',
+    definition: 'ETF를 운영하는 데 드는 연간 비용이야. 낮을수록 투자자에게 유리해. 0.10% 이하면 초저비용, 0.30% 이하면 저비용으로 봐. 1% 넘어가면 비싸다고 생각하면 돼.',
+    summary: 'ETF 운영에 드는 연간 수수료야. 낮을수록 좋아.',
+    tip: '0.10% 이하면 초저비용, 0.30% 이하면 저비용으로 봐. 장기 투자일수록 운용보수 차이가 수익에 큰 영향을 줘.',
+    key: 'expense_ratio',
+  },
+  total_assets: {
+    label: '순자산 (AUM)',
+    icon: '🏦',
+    definition: 'ETF가 운용하는 총 자산 규모야. 클수록 유동성이 좋고 안정적이야. 보통 100억 달러 이상이면 대형 ETF로 봐. 작은 ETF는 상장폐지 위험이 있으니 주의해.',
+    summary: 'ETF가 운용하는 총 자산 규모야. 클수록 유동성과 안정성이 좋아.',
+    tip: '100억 달러 이상이면 대형 ETF로 안전해. 10억 달러 미만이면 유동성 리스크를 고려해봐.',
+    key: 'total_assets',
+  },
+  premium_discount: {
+    label: '괴리율',
+    icon: '📏',
+    definition: 'ETF 시장 가격과 순자산가치(NAV)의 차이를 나타내는 지표야. 0%에 가까울수록 추적이 정확하다는 뜻이야. ±0.50% 이내면 우수, ±1.00% 이상이면 추적 성능이 나쁘다고 봐.',
+    summary: 'ETF 시장 가격이 순자산가치(NAV)와 얼마나 차이 나는지 보여주는 지표야.',
+    tip: '±0.50% 이내면 우수한 추적 성능이야. 괴리율이 크면 매매 타이밍을 조절해봐.',
+    key: 'premium_discount',
+  },
+  dividend_yield: {
+    label: '배당수익률',
+    icon: '💸',
+    definition: 'ETF가 매년 지급하는 배당금을 주가로 나눈 값이야. 높을수록 배당 수익이 커. 보통 2~4%면 적정 수준이고, 5% 이상이면 고배당 ETF로 봐.',
+    summary: 'ETF가 주는 연간 배당금을 주가로 나눈 비율이야.',
+    tip: '2~4%면 적정, 5% 이상이면 고배당으로 봐. 배당 성장률도 함께 확인하면 좋아.',
+    key: 'dividend_yield',
+  },
+  inception_date: {
+    label: '설정일',
+    icon: '📅',
+    definition: 'ETF가 처음 만들어진 날짜야. 오래된 ETF일수록 운용 이력과 데이터가 많아서 신뢰도가 높아. 보통 3년 이상 운용된 ETF를 선호하는 편이야.',
+    summary: 'ETF가 처음 설정된 날짜야. 오래될수록 운용 이력이 풍부해.',
+    tip: '3년 이상 운용된 ETF가 신뢰도가 높아. 신생 ETF는 추적 성과를 충분히 확인해봐.',
+    key: 'inception_date',
   },
 }
 
