@@ -52,17 +52,19 @@ class StockInfo(BaseModel):
     target_upside: Optional[float] = None
     target_upside_str: Optional[str] = None
     currency: Optional[str] = None
-    # ETF 전용 필드
-    expense_ratio: Optional[float] = None  # 운용보수 (%)
-    expense_ratio_str: Optional[str] = None
+    # ETF 전용 필드 (6개)
     total_assets: Optional[float] = None  # 순자산 (AUM)
     total_assets_str: Optional[str] = None
-    premium_discount: Optional[float] = None  # 괴리율 (%)
-    premium_discount_str: Optional[str] = None
     dividend_yield: Optional[float] = None  # 배당수익률 (%)
     dividend_yield_str: Optional[str] = None
+    premium_discount: Optional[float] = None  # 괴리율 (%)
+    premium_discount_str: Optional[str] = None
     inception_date: Optional[str] = None  # 설정일
     inception_date_str: Optional[str] = None
+    average_volume: Optional[float] = None  # 평균 거래량 (유동성 지표)
+    average_volume_str: Optional[str] = None
+    change_52week: Optional[float] = None  # 52주 수익률 (%)
+    change_52week_str: Optional[str] = None
     top_holdings: Optional[List[str]] = None  # 구성종목 Top3
 
     class Config:

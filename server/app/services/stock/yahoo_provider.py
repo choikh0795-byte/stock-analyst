@@ -263,10 +263,6 @@ class YahooStockProvider(BaseStockProvider):
             # ETF 전용 지표
             logger.info(f"[YahooStockProvider] ETF 감지: {ticker}, ETF 지표 추출 시작")
 
-            # 운용보수
-            expense_ratio = self._etf_calculator.extract_expense_ratio(stock, info)
-            result["expense_ratio"] = expense_ratio
-
             # 순자산 (AUM)
             total_assets = self._etf_calculator.extract_total_assets(info)
             result["total_assets"] = total_assets
@@ -284,6 +280,14 @@ class YahooStockProvider(BaseStockProvider):
             # 설정일
             inception_date = self._etf_calculator.extract_inception_date(info)
             result["inception_date"] = inception_date
+
+            # 평균 거래량 (유동성 지표)
+            average_volume = self._etf_calculator.extract_average_volume(info)
+            result["average_volume"] = average_volume
+
+            # 52주 수익률 (수익률 지표)
+            change_52week = self._etf_calculator.extract_52week_change(info)
+            result["change_52week"] = change_52week
 
             # 구성종목 Top3 (현재 Yahoo에서 제공하지 않으므로 빈 리스트)
             top_holdings = self._etf_calculator.extract_top_holdings(info, limit=3)
@@ -323,12 +327,13 @@ class YahooStockProvider(BaseStockProvider):
             result["target_mean_price"] = info.get("targetMeanPrice")
 
             # ETF 필드는 None 처리
-            result["expense_ratio"] = None
             result["total_assets"] = None
             result["dividend_yield"] = None
             result["nav_price"] = None
             result["premium_discount"] = None
             result["inception_date"] = None
+            result["average_volume"] = None
+            result["change_52week"] = None
             result["top_holdings"] = []
 
         return result
