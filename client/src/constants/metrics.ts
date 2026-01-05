@@ -8,7 +8,7 @@ export interface MetricDefinition {
   definition: string
   summary?: string
   tip?: string
-  key: 'pe_ratio' | 'pb_ratio' | 'roe' | 'return_on_equity' | 'debt_ratio' | 'beta' | 'eps' | 'target_mean_price' | 'expense_ratio' | 'total_assets' | 'premium_discount' | 'dividend_yield' | 'inception_date'
+  key: 'pe_ratio' | 'pb_ratio' | 'roe' | 'return_on_equity' | 'debt_ratio' | 'beta' | 'eps' | 'target_mean_price' | 'total_assets' | 'premium_discount' | 'dividend_yield' | 'inception_date' | 'average_volume' | 'change_52week'
 }
 
 export const METRIC_DEFINITIONS: Record<string, MetricDefinition> = {
@@ -77,15 +77,7 @@ export const METRIC_DEFINITIONS: Record<string, MetricDefinition> = {
     tip: '현재가와 목표가 차이(업사이드)를 보고, 의견 수가 충분한지 함께 확인해봐. 어디까지나 참고용이니 기업 펀더멘털과 같이 판단해.',
     key: 'target_mean_price',
   },
-  // ===== ETF 전용 지표 =====
-  expense_ratio: {
-    label: '운용보수',
-    icon: '💰',
-    definition: 'ETF를 운영하는 데 드는 연간 비용이야. 낮을수록 투자자에게 유리해. 0.10% 이하면 초저비용, 0.30% 이하면 저비용으로 봐. 1% 넘어가면 비싸다고 생각하면 돼.',
-    summary: 'ETF 운영에 드는 연간 수수료야. 낮을수록 좋아.',
-    tip: '0.10% 이하면 초저비용, 0.30% 이하면 저비용으로 봐. 장기 투자일수록 운용보수 차이가 수익에 큰 영향을 줘.',
-    key: 'expense_ratio',
-  },
+  // ===== ETF 전용 지표 (6개) =====
   total_assets: {
     label: '순자산 (AUM)',
     icon: '🏦',
@@ -117,6 +109,22 @@ export const METRIC_DEFINITIONS: Record<string, MetricDefinition> = {
     summary: 'ETF가 처음 설정된 날짜야. 오래될수록 운용 이력이 풍부해.',
     tip: '3년 이상 운용된 ETF가 신뢰도가 높아. 신생 ETF는 추적 성과를 충분히 확인해봐.',
     key: 'inception_date',
+  },
+  average_volume: {
+    label: '평균 거래량',
+    icon: '📊',
+    definition: '하루 평균 몇 주가 거래되는지 보여주는 지표야. 거래량이 많을수록 유동성이 좋아서 원하는 가격에 사고팔기 쉬워. 보통 100만 주 이상이면 유동성이 좋다고 봐.',
+    summary: '하루 평균 거래량이야. 많을수록 유동성이 좋아.',
+    tip: '100만 주 이상이면 유동성 걱정 없어. 거래량이 적으면 매도할 때 손해 볼 수 있으니 주의해.',
+    key: 'average_volume',
+  },
+  change_52week: {
+    label: '52주 수익률',
+    icon: '📈',
+    definition: '지난 1년간 ETF 가격이 얼마나 올랐는지(또는 떨어졌는지) 보여주는 지표야. 양수면 수익, 음수면 손실이야. 시장 전체 흐름과 비교해보면 ETF 성과를 평가할 수 있어.',
+    summary: '지난 1년간 가격 변동률이야. 성과를 한눈에 볼 수 있어.',
+    tip: 'S&P 500 ETF(SPY) 수익률과 비교해보면 시장 대비 성과를 알 수 있어. 단기 변동보다는 장기 추세를 봐.',
+    key: 'change_52week',
   },
 }
 

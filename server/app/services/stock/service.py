@@ -170,19 +170,21 @@ class StockService:
             market_cap_str_value = None
         
         # ETF 전용 필드 추출 및 포맷팅
-        expense_ratio = info.get("expense_ratio")
         total_assets = info.get("total_assets")
-        premium_discount = info.get("premium_discount")
         dividend_yield = info.get("dividend_yield")
+        premium_discount = info.get("premium_discount")
         inception_date = info.get("inception_date")
+        average_volume = info.get("average_volume")
+        change_52week = info.get("change_52week")
         top_holdings = info.get("top_holdings", [])
 
         # 포맷터가 None 처리를 하므로 항상 호출 (N/A 반환)
-        expense_ratio_str = self.formatter.format_expense_ratio(expense_ratio)
         total_assets_str = self.formatter.format_total_assets(total_assets, is_korean)
-        premium_discount_str = self.formatter.format_premium_discount(premium_discount)
         dividend_yield_str = self.formatter.format_percentage(dividend_yield, 2)
+        premium_discount_str = self.formatter.format_premium_discount(premium_discount)
         inception_date_str = self.formatter.format_inception_date(inception_date)
+        average_volume_str = self.formatter.format_average_volume(average_volume)
+        change_52week_str = self.formatter.format_52week_change(change_52week)
 
         data = {
             "name": stock_name,
@@ -226,17 +228,19 @@ class StockService:
             "roe": roe,
             "eps": eps,
             "debt_ratio": debt_ratio,
-            # ETF 전용 필드
-            "expense_ratio": expense_ratio,
-            "expense_ratio_str": expense_ratio_str,
+            # ETF 전용 필드 (6개)
             "total_assets": total_assets,
             "total_assets_str": total_assets_str,
-            "premium_discount": premium_discount,
-            "premium_discount_str": premium_discount_str,
             "dividend_yield": dividend_yield,
             "dividend_yield_str": dividend_yield_str,
+            "premium_discount": premium_discount,
+            "premium_discount_str": premium_discount_str,
             "inception_date": inception_date,
             "inception_date_str": inception_date_str,
+            "average_volume": average_volume,
+            "average_volume_str": average_volume_str,
+            "change_52week": change_52week,
+            "change_52week_str": change_52week_str,
             "top_holdings": top_holdings,
         }
 

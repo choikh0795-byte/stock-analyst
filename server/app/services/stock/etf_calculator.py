@@ -15,12 +15,14 @@ class ETFCalculator:
     ETF 전용 지표 계산 및 추출
 
     주요 지표:
-    - 운용보수 (Expense Ratio)
     - 순자산 (AUM - Assets Under Management)
     - 배당수익률 (Dividend Yield)
     - 괴리율 (Premium/Discount to NAV)
     - 설정일 (Inception Date)
-    - 구성종목 Top3 (Holdings)
+    - 평균 거래량 (Average Volume) - 유동성 지표
+    - 52주 수익률 (52 Week Change) - 수익률 지표
+
+    Note: 운용보수(Expense Ratio)는 Yahoo Finance API에서 안정적으로 제공되지 않아 제외
     """
 
     def extract_expense_ratio(self, ticker_obj, info: Dict) -> Optional[float]:
@@ -279,4 +281,94 @@ class ETFCalculator:
         """
         # 추적오차 계산은 벤치마크 데이터가 필요하므로 보류
         logger.info("[ETFCalculator] 추적오차 계산은 향후 구현 예정 (벤치마크 데이터 필요)")
+        return None
+
+    def extract_average_volume(self, info: Dict) -> Optional[float]:
+        """
+        평균 거래량 추출 (Average Volume)
+
+        유동성 지표로 활용. 거래량이 많을수록 유동성이 좋음.
+
+        Yahoo Finance 필드:
+        - averageVolume10days (우선, 10일 평균)
+        - averageVolume (대안, 3개월 평균)
+        - volume (현재 거래량, 최후 대안)
+
+        Args:
+            info: yfinance info 딕셔너리
+
+        Returns:
+            Optional[float]: 평균 거래량 (주식 수)
+        """
+        # 1순위: averageVolume10days (10일 평균)
+        avg_volume = info.get("averageVolume10days")
+        if avg_volume is not None:
+            try:
+                volume = float(avg_volume)
+                logger.info(f"[ETFCalculator] 평균 거래량 추출 (10일): {volume:,.0f}")
+                return volume
+            except (ValueError, TypeError):
+                pass
+
+        # 2순위: averageVolume (3개월 평균)
+        avg_volume = info.get("averageVolume")
+        if avg_volume is not None:
+            try:
+                volume = float(avg_volume)
+                logger.info(f"[ETFCalculator] 평균 거래량 추출 (3개월): {volume:,.0f}")
+                return volume
+            except (ValueError, TypeError):
+                pass
+
+        # 3순위: volume (현재 거래량)
+        current_volume = info.get("volume")
+        if current_volume is not None:
+            try:
+                volume = float(current_volume)
+                logger.info(f"[ETFCalculator] 평균 거래량 추출 (현재): {volume:,.0f}")
+                return volume
+            except (ValueError, TypeError):
+                pass
+
+        logger.warning("[ETFCalculator] 평균 거래량 추출 실패")
+        return None
+
+    def extract_52week_change(self, info: Dict) -> Optional[float]:
+        """
+        52주 수익률 추출 (52 Week Change)
+
+        1년간 가격 변동률을 수익률 지표로 활용.
+
+        Yahoo Finance 필드:
+        - 52WeekChange (우선)
+        - ytdReturn (대안, 연초 대비 수익률)
+
+        Args:
+            info: yfinance info 딕셔너리
+
+        Returns:
+            Optional[float]: 52주 수익률 (%, 예: 15.5 = +15.5%)
+        """
+        # 1순위: 52WeekChange
+        change_52week = info.get("52WeekChange")
+        if change_52week is not None:
+            try:
+                # Yahoo는 보통 0.155 형식으로 제공 → 15.5%로 변환
+                change_pct = float(change_52week) * 100
+                logger.info(f"[ETFCalculator] 52주 수익률 추출: {change_pct:+.2f}%")
+                return round(change_pct, 2)
+            except (ValueError, TypeError):
+                pass
+
+        # 2순위: ytdReturn (연초 대비 수익률)
+        ytd_return = info.get("ytdReturn")
+        if ytd_return is not None:
+            try:
+                return_pct = float(ytd_return) * 100
+                logger.info(f"[ETFCalculator] YTD 수익률 추출 (대안): {return_pct:+.2f}%")
+                return round(return_pct, 2)
+            except (ValueError, TypeError):
+                pass
+
+        logger.warning("[ETFCalculator] 52주 수익률 추출 실패")
         return None

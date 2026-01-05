@@ -51,17 +51,19 @@ export interface StockInfo {
   number_of_analyst_opinions?: number | null
   peg_ratio?: number | null
   beta?: number | null
-  // ETF 전용 필드
-  expense_ratio?: number | null  // 운용보수 (%)
-  expense_ratio_str?: string | null
+  // ETF 전용 필드 (6개)
   total_assets?: number | null  // 순자산 (AUM)
   total_assets_str?: string | null
-  premium_discount?: number | null  // 괴리율 (%)
-  premium_discount_str?: string | null
   dividend_yield?: number | null  // 배당수익률 (%)
   dividend_yield_str?: string | null
+  premium_discount?: number | null  // 괴리율 (%)
+  premium_discount_str?: string | null
   inception_date?: string | null  // 설정일
   inception_date_str?: string | null
+  average_volume?: number | null  // 평균 거래량 (유동성 지표)
+  average_volume_str?: string | null
+  change_52week?: number | null  // 52주 수익률 (%)
+  change_52week_str?: string | null
   top_holdings?: string[]  // 구성종목 Top3
 }
 

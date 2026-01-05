@@ -274,3 +274,41 @@ class StockFormatter:
             return "N/A"
         return inception_date
 
+    @staticmethod
+    def format_average_volume(average_volume: Optional[float]) -> str:
+        """
+        평균 거래량 포맷팅
+
+        - None이면 "N/A"
+        - K/M/B 단위로 축약 (예: 1.5M, 10.2K)
+        """
+        if average_volume is None or average_volume == 0:
+            return "N/A"
+
+        billion = 1_000_000_000
+        million = 1_000_000
+        thousand = 1_000
+
+        if average_volume >= billion:
+            return f"{average_volume / billion:.1f}B"
+        elif average_volume >= million:
+            return f"{average_volume / million:.1f}M"
+        elif average_volume >= thousand:
+            return f"{average_volume / thousand:.1f}K"
+        else:
+            return f"{int(average_volume):,}"
+
+    @staticmethod
+    def format_52week_change(change_52week: Optional[float]) -> str:
+        """
+        52주 수익률 포맷팅
+
+        - None이면 "N/A"
+        - 양수면 "+" 기호 포함 (예: +15.5%)
+        - 음수면 "-" 기호 포함 (예: -5.2%)
+        """
+        if change_52week is None:
+            return "N/A"
+        sign = "+" if change_52week >= 0 else ""
+        return f"{sign}{change_52week:.2f}%"
+
