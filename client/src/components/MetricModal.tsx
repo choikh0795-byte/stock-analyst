@@ -2,7 +2,7 @@ import React, { useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { METRIC_DEFINITIONS } from '../constants/metrics'
 import type { StockInfo } from '../types/stock'
-import { Tag, Building2, TrendingUp, Coins, DollarSign, Target, X, BookOpen, Lightbulb, Wallet, Building, BarChart3, Gift, Calendar } from 'lucide-react'
+import { Tag, Building2, TrendingUp, Coins, DollarSign, Target, X, BookOpen, Lightbulb, Wallet, Building, BarChart3, Gift, Calendar, TrendingUp as TrendingUpIcon } from 'lucide-react'
 
 interface MetricModalProps {
   isOpen: boolean
@@ -66,6 +66,7 @@ export const MetricModal: React.FC<MetricModalProps> = ({
     premium_discount: BarChart3,
     dividend_yield: Gift,
     inception_date: Calendar,
+    top_holdings: TrendingUpIcon,
   }
 
   const IconComponent = iconMap[metricKey] || Tag
@@ -100,6 +101,11 @@ export const MetricModal: React.FC<MetricModalProps> = ({
         return stockData.dividend_yield_str || 'N/A'
       case 'inception_date':
         return stockData.inception_date_str || 'N/A'
+      case 'top_holdings':
+        if (stockData.top_holdings && stockData.top_holdings.length > 0) {
+          return stockData.top_holdings.join(', ')
+        }
+        return 'N/A'
       default:
         return 'N/A'
     }

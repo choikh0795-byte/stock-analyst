@@ -3,7 +3,7 @@ import type { StockInfo, AIAnalysis } from '../types/stock'
 import { getSignalColor } from '../utils/stockUtils'
 import { PriceRangeBar } from './PriceRangeBar'
 import { MetricModal } from './MetricModal'
-import { Tag, Building2, TrendingUp, Coins, DollarSign, Target, ChevronRight, CheckCircle2, Wallet, Building, BarChart3, Gift, Calendar } from 'lucide-react'
+import { Tag, Building2, TrendingUp, Coins, DollarSign, Target, ChevronRight, CheckCircle2, Wallet, Building, BarChart3, Gift, Calendar, TrendingUp as TrendingUpIcon } from 'lucide-react'
 
 interface StockCardProps {
   data: StockInfo
@@ -116,6 +116,9 @@ export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
       case 'inception_date':
         // 날짜는 상태 뱃지 불필요
         return { status: '데이터', badgeClass: 'bg-slate-100 text-slate-600' }
+      case 'top_holdings':
+        // 구성종목은 상태 뱃지 불필요
+        return { status: '데이터', badgeClass: 'bg-slate-100 text-slate-600' }
       default:
         return { status: 'N/A', badgeClass: 'bg-slate-100 text-slate-600' }
     }
@@ -124,7 +127,7 @@ export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
   // 자산 타입에 따라 다른 지표 표시 (주식 vs ETF)
   const metricCards = data.asset_type === 'ETF'
     ? [
-        // ETF 전용 지표 (5개)
+        // ETF 전용 지표 (6개)
         {
           key: 'expense_ratio',
           label: '운용보수',
@@ -164,6 +167,16 @@ export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
           numericValue: null,
           status: getETFMetricStatus('inception_date', null),
           Icon: Calendar,
+        },
+        {
+          key: 'top_holdings',
+          label: '주요 구성종목',
+          value: (data.top_holdings && data.top_holdings.length > 0)
+            ? data.top_holdings.join(', ')
+            : 'N/A',
+          numericValue: null,
+          status: getETFMetricStatus('top_holdings', null),
+          Icon: TrendingUpIcon,
         },
       ]
     : [
