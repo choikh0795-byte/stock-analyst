@@ -8,6 +8,7 @@ from app.core.database import get_db
 from app.services.ai_service import AIService
 from app.services.stock import StockService
 from app.services.update_log_service import UpdateLogService
+from app.services.search import AssetSearchService
 
 
 @lru_cache()
@@ -34,4 +35,12 @@ def get_update_log_service(db: Session = Depends(get_db)) -> UpdateLogService:
     매 요청마다 DB 세션을 주입받도록 설계합니다.
     """
     return UpdateLogService(db=db)
+
+
+def get_asset_search_service(db: Session = Depends(get_db)) -> AssetSearchService:
+    """
+    AssetSearchService 인스턴스를 생성하고 반환합니다.
+    매 요청마다 DB 세션을 주입받도록 설계합니다.
+    """
+    return AssetSearchService(db=db)
 
