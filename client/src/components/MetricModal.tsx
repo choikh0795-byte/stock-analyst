@@ -2,7 +2,7 @@ import React, { useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { METRIC_DEFINITIONS } from '../constants/metrics'
 import type { StockInfo } from '../types/stock'
-import { Tag, Building2, TrendingUp, Coins, DollarSign, Target, X, BookOpen, Lightbulb, Wallet, Building, BarChart3, Gift, Calendar, TrendingUp as TrendingUpIcon } from 'lucide-react'
+import { Tag, Building2, TrendingUp, Coins, DollarSign, Target, X, BookOpen, Lightbulb, Wallet, Building, BarChart3, Gift, Calendar, TrendingUp as TrendingUpIcon, Activity, BarChart2 } from 'lucide-react'
 
 interface MetricModalProps {
   isOpen: boolean
@@ -67,6 +67,8 @@ export const MetricModal: React.FC<MetricModalProps> = ({
     dividend_yield: Gift,
     inception_date: Calendar,
     top_holdings: TrendingUpIcon,
+    average_volume: Activity,
+    change_52week: BarChart2,
   }
 
   const IconComponent = iconMap[metricKey] || Tag
@@ -106,6 +108,10 @@ export const MetricModal: React.FC<MetricModalProps> = ({
           return stockData.top_holdings.join(', ')
         }
         return 'N/A'
+      case 'average_volume':
+        return stockData.average_volume_str || 'N/A'
+      case 'change_52week':
+        return stockData.change_52week_str || 'N/A'
       default:
         return 'N/A'
     }
@@ -497,6 +503,86 @@ export const MetricModal: React.FC<MetricModalProps> = ({
             colorClass: 'text-amber-600',
             bgClass: 'bg-amber-50',
             textColor: 'text-amber-700',
+          }
+        }
+        break
+      }
+      case 'average_volume': {
+        const averageVolume = stockData.average_volume
+        if (averageVolume !== null && averageVolume !== undefined) {
+          if (averageVolume >= 1_000_000) {
+            return {
+              status: '매우 우수',
+              colorClass: 'text-emerald-600',
+              bgClass: 'bg-emerald-50',
+              textColor: 'text-emerald-700',
+            }
+          }
+          if (averageVolume >= 100_000) {
+            return {
+              status: '우수',
+              colorClass: 'text-emerald-600',
+              bgClass: 'bg-emerald-50',
+              textColor: 'text-emerald-700',
+            }
+          }
+          if (averageVolume >= 10_000) {
+            return {
+              status: '보통',
+              colorClass: 'text-slate-600',
+              bgClass: 'bg-slate-50',
+              textColor: 'text-slate-700',
+            }
+          }
+          return {
+            status: '낮음',
+            colorClass: 'text-amber-600',
+            bgClass: 'bg-amber-50',
+            textColor: 'text-amber-700',
+          }
+        }
+        break
+      }
+      case 'change_52week': {
+        const change52week = stockData.change_52week
+        if (change52week !== null && change52week !== undefined) {
+          if (change52week >= 20) {
+            return {
+              status: '매우 우수',
+              colorClass: 'text-emerald-600',
+              bgClass: 'bg-emerald-50',
+              textColor: 'text-emerald-700',
+            }
+          }
+          if (change52week >= 10) {
+            return {
+              status: '우수',
+              colorClass: 'text-emerald-600',
+              bgClass: 'bg-emerald-50',
+              textColor: 'text-emerald-700',
+            }
+          }
+          if (change52week >= 0) {
+            return {
+              status: '보통',
+              colorClass: 'text-slate-600',
+              bgClass: 'bg-slate-50',
+              textColor: 'text-slate-700',
+            }
+          }
+          if (change52week >= -10) {
+            return {
+              status: '주의',
+              colorClass: 'text-amber-600',
+              bgClass: 'bg-amber-50',
+              textColor: 'text-amber-700',
+            }
+          }
+          return {
+            status: '부진',
+            colorClass: 'text-rose-600',
+            bgClass: 'bg-rose-50',
+            textColor: 'text-rose-700',
           }
         }
         break
