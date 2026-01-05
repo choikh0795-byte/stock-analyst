@@ -3,5 +3,6 @@
 """
 
 from .index_builder import AssetSearchIndexBuilder, AssetSourceItem
+from .search_service import AssetSearchService
 
-__all__ = ["AssetSearchIndexBuilder", "AssetSourceItem"]
+__all__ = ["AssetSearchIndexBuilder", "AssetSourceItem", "AssetSearchService"]
