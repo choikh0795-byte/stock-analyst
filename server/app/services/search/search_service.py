@@ -11,7 +11,7 @@ from sqlalchemy.dialects.postgresql import ARRAY, TEXT
 from enum import IntEnum
 
 from sqlalchemy import select, or_, func
-from app.models.asset_search_index import AssetSearchIndex
+from app.models.asset_search_index import AssetSearchIndex, AssetType
 from app.utils.hangul import INITIAL_CONSONANTS, HANGUL_SYLLABLE_START, HANGUL_SYLLABLE_END
 import logging
 
@@ -121,14 +121,17 @@ class AssetSearchService:
                 )
             )
 
-            # Dict 형태로 변환 (match_type 제거)
+            # Dict 형태로 변환 (match_type 제거, AssetSchema 필수 필드 포함)
             return [
                 {
+                    "id": item["result"].id,
                     "ticker": item["result"].ticker,
                     "name_kr": item["result"].name_kr,
                     "name_en": item["result"].name_en,
                     "asset_type": item["result"].asset_type.value,
                     "exchange": item["result"].exchange,
+                    "country": self._get_country_from_asset_type(item["result"].asset_type),
+                    "currency": self._get_currency_from_asset_type(item["result"].asset_type),
                 }
                 for item in results_with_priority[:effective_limit]
             ]
@@ -382,3 +385,43 @@ class AssetSearchService:
 
         # 기본값
         return MatchType.TOKEN
+
+    def _get_country_from_asset_type(self, asset_type: AssetType) -> str:
+        """
+        자산 유형에서 국가 코드를 추론합니다.
+
+        Args:
+            asset_type: AssetType Enum
+
+        Returns:
+            국가 코드 (KR 또는 US)
+        """
+        if asset_type == AssetType.STOCK_KR or asset_type == AssetType.ETF:
+            # ETF도 한국 시장일 가능성이 높지만, 향후 확장 가능성 고려
+            # 현재는 한국으로 간주 (필요시 exchange 기반으로 구분 가능)
+            return "KR"
+        elif asset_type == AssetType.STOCK_US:
+            return "US"
+        else:
+            # 기본값 (한국)
+            return "KR"
+
+    def _get_currency_from_asset_type(self, asset_type: AssetType) -> str:
+        """
+        자산 유형에서 통화 코드를 추론합니다.
+
+        Args:
+            asset_type: AssetType Enum
+
+        Returns:
+            통화 코드 (KRW 또는 USD)
+        """
+        if asset_type == AssetType.STOCK_KR or asset_type == AssetType.ETF:
+            # ETF도 한국 시장일 가능성이 높지만, 향후 확장 가능성 고려
+            # 현재는 KRW로 간주 (필요시 exchange 기반으로 구분 가능)
+            return "KRW"
+        elif asset_type == AssetType.STOCK_US:
+            return "USD"
+        else:
+            # 기본값 (한국 원화)
+            return "KRW"
