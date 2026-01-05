@@ -2,7 +2,7 @@ import React, { useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { METRIC_DEFINITIONS } from '../constants/metrics'
 import type { StockInfo } from '../types/stock'
-import { Tag, Building2, TrendingUp, Coins, DollarSign, Target, X, BookOpen, Lightbulb } from 'lucide-react'
+import { Tag, Building2, TrendingUp, Coins, DollarSign, Target, X, BookOpen, Lightbulb, Wallet, Building, BarChart3, Gift, Calendar } from 'lucide-react'
 
 interface MetricModalProps {
   isOpen: boolean
@@ -60,6 +60,12 @@ export const MetricModal: React.FC<MetricModalProps> = ({
     beta: DollarSign,
     eps: DollarSign,
     target_mean_price: Target,
+    // ETF 지표 아이콘
+    expense_ratio: Wallet,
+    total_assets: Building,
+    premium_discount: BarChart3,
+    dividend_yield: Gift,
+    inception_date: Calendar,
   }
 
   const IconComponent = iconMap[metricKey] || Tag
@@ -67,6 +73,7 @@ export const MetricModal: React.FC<MetricModalProps> = ({
   // 지표 값 가져오기 (백엔드에서 포맷팅된 문자열 우선 사용)
   const getMetricValue = (): string => {
     switch (metricKey) {
+      // 주식 지표
       case 'pe_ratio':
         return stockData.pe_ratio_str || 'N/A'
       case 'pb_ratio':
@@ -82,6 +89,17 @@ export const MetricModal: React.FC<MetricModalProps> = ({
         return stockData.eps_str || 'N/A'
       case 'target_mean_price':
         return stockData.target_upside_str || 'N/A'
+      // ETF 지표
+      case 'expense_ratio':
+        return stockData.expense_ratio_str || 'N/A'
+      case 'total_assets':
+        return stockData.total_assets_str || 'N/A'
+      case 'premium_discount':
+        return stockData.premium_discount_str || 'N/A'
+      case 'dividend_yield':
+        return stockData.dividend_yield_str || 'N/A'
+      case 'inception_date':
+        return stockData.inception_date_str || 'N/A'
       default:
         return 'N/A'
     }
@@ -282,6 +300,201 @@ export const MetricModal: React.FC<MetricModalProps> = ({
           }
         }
         break
+      // ETF 지표 평가
+      case 'expense_ratio': {
+        const expenseRatio = stockData.expense_ratio
+        if (expenseRatio !== null && expenseRatio !== undefined) {
+          if (expenseRatio <= 0.10) {
+            return {
+              status: '매우 우수',
+              colorClass: 'text-emerald-600',
+              bgClass: 'bg-emerald-50',
+              textColor: 'text-emerald-700',
+            }
+          }
+          if (expenseRatio <= 0.30) {
+            return {
+              status: '우수',
+              colorClass: 'text-emerald-600',
+              bgClass: 'bg-emerald-50',
+              textColor: 'text-emerald-700',
+            }
+          }
+          if (expenseRatio <= 0.50) {
+            return {
+              status: '보통',
+              colorClass: 'text-slate-600',
+              bgClass: 'bg-slate-50',
+              textColor: 'text-slate-700',
+            }
+          }
+          if (expenseRatio <= 1.00) {
+            return {
+              status: '평균',
+              colorClass: 'text-amber-600',
+              bgClass: 'bg-amber-50',
+              textColor: 'text-amber-700',
+            }
+          }
+          return {
+            status: '높음',
+            colorClass: 'text-rose-600',
+            bgClass: 'bg-rose-50',
+            textColor: 'text-rose-700',
+          }
+        }
+        break
+      }
+      case 'total_assets': {
+        const totalAssets = stockData.total_assets
+        if (totalAssets !== null && totalAssets !== undefined) {
+          const billion = 1_000_000_000
+          const million = 1_000_000
+          if (totalAssets >= 10 * billion) {
+            return {
+              status: '매우 우수',
+              colorClass: 'text-emerald-600',
+              bgClass: 'bg-emerald-50',
+              textColor: 'text-emerald-700',
+            }
+          }
+          if (totalAssets >= 1 * billion) {
+            return {
+              status: '우수',
+              colorClass: 'text-emerald-600',
+              bgClass: 'bg-emerald-50',
+              textColor: 'text-emerald-700',
+            }
+          }
+          if (totalAssets >= 100 * million) {
+            return {
+              status: '보통',
+              colorClass: 'text-slate-600',
+              bgClass: 'bg-slate-50',
+              textColor: 'text-slate-700',
+            }
+          }
+          if (totalAssets >= 10 * million) {
+            return {
+              status: '평균',
+              colorClass: 'text-amber-600',
+              bgClass: 'bg-amber-50',
+              textColor: 'text-amber-700',
+            }
+          }
+          return {
+            status: '낮음',
+            colorClass: 'text-rose-600',
+            bgClass: 'bg-rose-50',
+            textColor: 'text-rose-700',
+          }
+        }
+        break
+      }
+      case 'premium_discount': {
+        const premiumDiscount = stockData.premium_discount
+        if (premiumDiscount !== null && premiumDiscount !== undefined) {
+          const absPremium = Math.abs(premiumDiscount)
+          if (absPremium <= 0.50) {
+            return {
+              status: '매우 우수',
+              colorClass: 'text-emerald-600',
+              bgClass: 'bg-emerald-50',
+              textColor: 'text-emerald-700',
+            }
+          }
+          if (absPremium <= 1.00) {
+            return {
+              status: '우수',
+              colorClass: 'text-emerald-600',
+              bgClass: 'bg-emerald-50',
+              textColor: 'text-emerald-700',
+            }
+          }
+          if (absPremium <= 2.00) {
+            return {
+              status: '보통',
+              colorClass: 'text-slate-600',
+              bgClass: 'bg-slate-50',
+              textColor: 'text-slate-700',
+            }
+          }
+          if (absPremium <= 5.00) {
+            return {
+              status: '평균',
+              colorClass: 'text-amber-600',
+              bgClass: 'bg-amber-50',
+              textColor: 'text-amber-700',
+            }
+          }
+          return {
+            status: '높음',
+            colorClass: 'text-rose-600',
+            bgClass: 'bg-rose-50',
+            textColor: 'text-rose-700',
+          }
+        }
+        break
+      }
+      case 'dividend_yield': {
+        const dividendYield = stockData.dividend_yield
+        if (dividendYield !== null && dividendYield !== undefined) {
+          if (dividendYield >= 4.0) {
+            return {
+              status: '우수',
+              colorClass: 'text-emerald-600',
+              bgClass: 'bg-emerald-50',
+              textColor: 'text-emerald-700',
+            }
+          }
+          if (dividendYield >= 2.0) {
+            return {
+              status: '보통',
+              colorClass: 'text-slate-600',
+              bgClass: 'bg-slate-50',
+              textColor: 'text-slate-700',
+            }
+          }
+          return {
+            status: '낮음',
+            colorClass: 'text-amber-600',
+            bgClass: 'bg-amber-50',
+            textColor: 'text-amber-700',
+          }
+        }
+        break
+      }
+      case 'inception_date': {
+        const inceptionDate = stockData.inception_date
+        if (inceptionDate) {
+          const inceptionYear = new Date(inceptionDate).getFullYear()
+          const currentYear = new Date().getFullYear()
+          const years = currentYear - inceptionYear
+          if (years >= 10) {
+            return {
+              status: '성숙',
+              colorClass: 'text-emerald-600',
+              bgClass: 'bg-emerald-50',
+              textColor: 'text-emerald-700',
+            }
+          }
+          if (years >= 5) {
+            return {
+              status: '안정',
+              colorClass: 'text-slate-600',
+              bgClass: 'bg-slate-50',
+              textColor: 'text-slate-700',
+            }
+          }
+          return {
+            status: '신생',
+            colorClass: 'text-amber-600',
+            bgClass: 'bg-amber-50',
+            textColor: 'text-amber-700',
+          }
+        }
+        break
+      }
     }
     return {
       status: '평가 불가',
