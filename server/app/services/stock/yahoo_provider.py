@@ -264,7 +264,7 @@ class YahooStockProvider(BaseStockProvider):
             logger.info(f"[YahooStockProvider] ETF 감지: {ticker}, ETF 지표 추출 시작")
 
             # 운용보수
-            expense_ratio = self._etf_calculator.extract_expense_ratio(info)
+            expense_ratio = self._etf_calculator.extract_expense_ratio(stock, info)
             result["expense_ratio"] = expense_ratio
 
             # 순자산 (AUM)
