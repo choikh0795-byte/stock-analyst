@@ -1,4 +1,4 @@
-from sqlalchemy import String, DateTime, Boolean, BigInteger, Index
+from sqlalchemy import String, DateTime, Boolean, BigInteger, Index, Text
 from sqlalchemy import Enum as SQLEnum, ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -60,7 +60,7 @@ class AssetSearchIndex(Base):
     # Search Fields
     initial_kr: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, index=True)
     search_tokens: Mapped[Optional[List[str]]] = mapped_column(
-        ARRAY(String),
+        ARRAY(Text),
         nullable=True
     )
 

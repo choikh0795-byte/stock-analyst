@@ -6,6 +6,9 @@
 
 from typing import Optional, List, Dict
 from sqlalchemy.orm import Session
+from sqlalchemy import cast
+from sqlalchemy.dialects.postgresql import ARRAY, TEXT
+
 from sqlalchemy import select, or_, func
 from app.models.asset_search_index import AssetSearchIndex
 from app.utils.hangul import INITIAL_CONSONANTS, HANGUL_SYLLABLE_START, HANGUL_SYLLABLE_END
@@ -92,8 +95,11 @@ class AssetSearchService:
         else:
             # 영문/숫자 (search_tokens 사용)
             stmt = stmt.where(
-                AssetSearchIndex.search_tokens.contains([query_lower])
+            cast(AssetSearchIndex.search_tokens, ARRAY(TEXT)).op("@>")(
+                cast([query_lower], ARRAY(TEXT))
             )
+        )
+
 
         # 정렬: name_kr 우선, 그 다음 ticker
         stmt = stmt.order_by(
