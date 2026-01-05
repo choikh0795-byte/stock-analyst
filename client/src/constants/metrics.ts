@@ -8,7 +8,7 @@ export interface MetricDefinition {
   definition: string
   summary?: string
   tip?: string
-  key: 'pe_ratio' | 'pb_ratio' | 'roe' | 'return_on_equity' | 'debt_ratio' | 'beta' | 'eps' | 'target_mean_price' | 'total_assets' | 'premium_discount' | 'dividend_yield' | 'inception_date' | 'average_volume' | 'change_52week'
+  key: 'pe_ratio' | 'pb_ratio' | 'roe' | 'return_on_equity' | 'debt_ratio' | 'beta' | 'eps' | 'target_mean_price' | 'expense_ratio' | 'total_assets' | 'premium_discount' | 'dividend_yield' | 'inception_date'
 }
 
 export const METRIC_DEFINITIONS: Record<string, MetricDefinition> = {
@@ -109,22 +109,6 @@ export const METRIC_DEFINITIONS: Record<string, MetricDefinition> = {
     summary: 'ETF가 처음 설정된 날짜야. 오래될수록 운용 이력이 풍부해.',
     tip: '3년 이상 운용된 ETF가 신뢰도가 높아. 신생 ETF는 추적 성과를 충분히 확인해봐.',
     key: 'inception_date',
-  },
-  average_volume: {
-    label: '평균 거래량',
-    icon: '📊',
-    definition: '하루 평균 몇 주가 거래되는지 보여주는 지표야. 거래량이 많을수록 유동성이 좋아서 원하는 가격에 사고팔기 쉬워. 보통 100만 주 이상이면 유동성이 좋다고 봐.',
-    summary: '하루 평균 거래량이야. 많을수록 유동성이 좋아.',
-    tip: '100만 주 이상이면 유동성 걱정 없어. 거래량이 적으면 매도할 때 손해 볼 수 있으니 주의해.',
-    key: 'average_volume',
-  },
-  change_52week: {
-    label: '52주 수익률',
-    icon: '📈',
-    definition: '지난 1년간 ETF 가격이 얼마나 올랐는지(또는 떨어졌는지) 보여주는 지표야. 양수면 수익, 음수면 손실이야. 시장 전체 흐름과 비교해보면 ETF 성과를 평가할 수 있어.',
-    summary: '지난 1년간 가격 변동률이야. 성과를 한눈에 볼 수 있어.',
-    tip: 'S&P 500 ETF(SPY) 수익률과 비교해보면 시장 대비 성과를 알 수 있어. 단기 변동보다는 장기 추세를 봐.',
-    key: 'change_52week',
   },
 }
 
