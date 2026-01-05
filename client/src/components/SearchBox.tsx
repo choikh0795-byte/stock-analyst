@@ -67,13 +67,28 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
         10,
         abortControllerRef.current.signal
       )
-      setSearchResults(response.results)
-      setShowAutocomplete(response.results.length > 0)
+
+      // Debug log to verify response structure
+      console.log('[SearchBox] API response:', {
+        response,
+        hasResults: response?.results !== undefined,
+        resultsType: Array.isArray(response?.results) ? 'array' : typeof response?.results,
+        resultsLength: response?.results?.length
+      })
+
+      // Defensive check: ensure results is an array
+      const results = Array.isArray(response?.results) ? response.results : []
+
+      setSearchResults(results)
+      setShowAutocomplete(results.length > 0)
     } catch (error) {
       // Only log non-cancellation errors
       if (error instanceof Error && error.message !== 'Request cancelled') {
         console.error('Autocomplete search error:', error)
       }
+      // Reset to empty array on error
+      setSearchResults([])
+      setShowAutocomplete(false)
     }
   }
 
