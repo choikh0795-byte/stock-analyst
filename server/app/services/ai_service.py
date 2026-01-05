@@ -228,9 +228,9 @@ PER {per}, PBR {pbr}, ROE {roe}%, EPS {eps}
         ETF AI 분석을 위한 시스템 프롬프트와 사용자 프롬프트를 생성합니다.
 
         최적화:
-        - ETF 전용 지표 중심 분석 (운용보수, 괴리율, 순자산)
+        - ETF 전용 지표 중심 분석 (순자산, 괴리율, 평균거래량, 52주 수익률)
         - 자연스러운 톤 (친근한 페르소나)
-        - 비용 효율성과 추적 안정성 중심 평가
+        - 유동성과 수익성 중심 평가
 
         Args:
             stock_data: ETF 정보 딕셔너리
@@ -241,7 +241,7 @@ PER {per}, PBR {pbr}, ROE {roe}%, EPS {eps}
         # 시스템 프롬프트: ETF 전문가 페르소나
         system_prompt = """너는 10년차 ETF 전문가야. 친근하고 솔직한 톤으로 ETF 투자 분석을 제공해.
 각 지표는 서로 다른 관점이니 개별적으로 분석해줘.
-섹터 테마와 추적 안정성 고려하고, 주요 리스크 1개만 명시해.
+섹터 테마와 추적 안정성, 유동성, 수익성을 고려하고, 주요 리스크 1개만 명시해.
 한국어 반말(~해, ~야, ~임) 사용하고 마침표 없이 작성해."""
 
         # 데이터 추출
@@ -250,11 +250,12 @@ PER {per}, PBR {pbr}, ROE {roe}%, EPS {eps}
         backend_score = stock_data.get("score", 50.0)
 
         # ETF 전용 지표
-        expense_ratio = stock_data.get('expense_ratio', 'N/A')
         total_assets = stock_data.get('total_assets', 'N/A')
-        premium_discount = stock_data.get('premium_discount', 'N/A')
         dividend_yield = stock_data.get('dividend_yield', 'N/A')
+        premium_discount = stock_data.get('premium_discount', 'N/A')
         inception_date = stock_data.get('inception_date', 'N/A')
+        average_volume = stock_data.get('average_volume', 'N/A')
+        week_52_return = stock_data.get('52week_return', 'N/A')
 
         current_price = stock_data.get('current_price', 'N/A')
         currency = stock_data.get('currency', '')
@@ -276,18 +277,35 @@ PER {per}, PBR {pbr}, ROE {roe}%, EPS {eps}
         else:
             premium_discount_str = "N/A"
 
+        # 평균거래량 포맷팅
+        if average_volume != 'N/A' and average_volume is not None:
+            if average_volume >= 1_000_000:  # 1M 이상
+                average_volume_str = f"{average_volume / 1_000_000:.1f}M"
+            elif average_volume >= 1_000:  # 1K 이상
+                average_volume_str = f"{average_volume / 1_000:.0f}K"
+            else:
+                average_volume_str = f"{int(average_volume):,}"
+        else:
+            average_volume_str = "N/A"
+
+        # 52주 수익률 포맷팅
+        if week_52_return != 'N/A' and week_52_return is not None:
+            week_52_return_str = f"{week_52_return:+.2f}%"
+        else:
+            week_52_return_str = "N/A"
+
         # 사용자 프롬프트: ETF 전용
         user_prompt = f"""{stock_data.get('name', 'N/A')} ({stock_data.get('symbol', 'N/A')})
 가격 {current_price}{currency} | 섹터 {sector} | 테마 {industry} | 점수 {backend_score}
 
 ETF 지표:
-운용보수 {expense_ratio}%, 순자산 {total_assets_str}, 괴리율 {premium_discount_str}
-배당수익률 {dividend_yield}%, 설정일 {inception_date}
+순자산 {total_assets_str}, 배당수익률 {dividend_yield}%, 괴리율 {premium_discount_str}
+설정일 {inception_date}, 평균거래량 {average_volume_str}, 52주 수익률 {week_52_return_str}
 
 분석 요구사항:
 1. signal: 매수(≥70), 중립(50-69), 주의(<50)
-2. one_line: 핵심 한줄 요약 (비용 효율성 중심)
-3. summary: 3개 포인트 (운용보수 적정성, 괴리율 안정성, 테마 적합성)
+2. one_line: 핵심 한줄 요약 (유동성과 수익성 중심)
+3. summary: 3개 포인트 (순자산 규모, 유동성, 수익성/괴리율 안정성)
 4. risk: 주요 리스크 1개 (추적오차, 유동성 등)"""
 
         return system_prompt, user_prompt
