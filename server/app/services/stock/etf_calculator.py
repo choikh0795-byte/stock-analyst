@@ -23,32 +23,74 @@ class ETFCalculator:
     - 구성종목 Top3 (Holdings)
     """
 
-    def extract_expense_ratio(self, info: Dict) -> Optional[float]:
+    def extract_expense_ratio(self, ticker_obj, info: Dict) -> Optional[float]:
         """
         운용보수 (Expense Ratio) 추출
 
-        Yahoo Finance 필드:
-        - annualReportExpenseRatio (우선)
-        - annualHoldingsTurnover (대안)
+        Yahoo Finance 필드 우선순위:
+        1. ticker.funds_data.fund_operations (신규 API, 2024년 9월 추가)
+        2. annualReportExpenseRatio (레거시 필드, 많은 ETF에서 null 반환)
 
         Args:
+            ticker_obj: yfinance Ticker 객체
             info: yfinance info 딕셔너리
 
         Returns:
             Optional[float]: 운용보수 (%, 예: 0.03 = 0.03%)
         """
-        # 1순위: annualReportExpenseRatio
+        # 1순위: funds_data.fund_operations (신규 API)
+        # yfinance 0.2.40+ 에서 추가된 새로운 API
+        # GitHub Issue #2040에서 제안된 해결책
+        try:
+            if hasattr(ticker_obj, 'funds_data'):
+                funds_data = ticker_obj.funds_data
+                if funds_data is not None and hasattr(funds_data, 'fund_operations'):
+                    fund_ops = funds_data.fund_operations
+                    # fund_operations는 DataFrame 또는 dict 형태
+                    if fund_ops is not None:
+                        # DataFrame인 경우
+                        if hasattr(fund_ops, 'to_dict'):
+                            fund_ops_dict = fund_ops.to_dict('records')
+                            if fund_ops_dict and len(fund_ops_dict) > 0:
+                                expense_ratio = fund_ops_dict[0].get('Annual Report Expense Ratio')
+                                if expense_ratio is not None:
+                                    try:
+                                        # funds_data는 이미 % 단위로 제공될 수 있음 (확인 필요)
+                                        ratio = float(expense_ratio)
+                                        # 0.0009 형식이면 * 100, 0.09 형식이면 그대로
+                                        if ratio < 1.0:  # 0.0009 형식 (0.09%)
+                                            ratio = ratio * 100
+                                        logger.info(f"[ETFCalculator] 운용보수 추출 (funds_data): {ratio:.2f}%")
+                                        return round(ratio, 2)
+                                    except (ValueError, TypeError) as e:
+                                        logger.debug(f"[ETFCalculator] funds_data 파싱 실패: {e}")
+                        # dict인 경우
+                        elif isinstance(fund_ops, dict):
+                            expense_ratio = fund_ops.get('Annual Report Expense Ratio')
+                            if expense_ratio is not None:
+                                try:
+                                    ratio = float(expense_ratio)
+                                    if ratio < 1.0:
+                                        ratio = ratio * 100
+                                    logger.info(f"[ETFCalculator] 운용보수 추출 (funds_data): {ratio:.2f}%")
+                                    return round(ratio, 2)
+                                except (ValueError, TypeError) as e:
+                                    logger.debug(f"[ETFCalculator] funds_data 파싱 실패: {e}")
+        except Exception as e:
+            logger.debug(f"[ETFCalculator] funds_data 접근 실패 (신규 API): {e}")
+
+        # 2순위: annualReportExpenseRatio (레거시)
         expense_ratio = info.get("annualReportExpenseRatio")
         if expense_ratio is not None:
             try:
                 ratio = float(expense_ratio) * 100  # 0.0003 → 0.03%
-                logger.info(f"[ETFCalculator] 운용보수 추출: {ratio:.2f}%")
+                logger.info(f"[ETFCalculator] 운용보수 추출 (레거시): {ratio:.2f}%")
                 return round(ratio, 2)
             except (ValueError, TypeError):
                 pass
 
-        # 2순위: 다른 필드 시도 (있을 경우)
-        logger.warning("[ETFCalculator] 운용보수 추출 실패: annualReportExpenseRatio 없음")
+        # 모든 방법 실패
+        logger.warning("[ETFCalculator] 운용보수 추출 실패: 모든 필드 시도했으나 데이터 없음")
         return None
 
     def extract_total_assets(self, info: Dict) -> Optional[float]:
