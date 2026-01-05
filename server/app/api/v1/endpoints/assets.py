@@ -41,8 +41,12 @@ async def search_assets(
     """
     logger.info(f"[Assets Router] Search request: q='{q}', limit={limit}")
 
-    results = asset_search_service.search(query=q, limit=limit)
+    try:
+        results = asset_search_service.search(query=q, limit=limit)
+        logger.info(f"[Assets Router] Found {len(results)} results")
+        return AssetSearchResponse(results=results, total=len(results))
 
-    logger.info(f"[Assets Router] Found {len(results)} results")
-
-    return AssetSearchResponse(results=results, total=len(results))
+    except Exception as e:
+        # 모든 예외를 로그에 기록하고 빈 결과 반환 (500 에러 방지)
+        logger.exception(f"[Assets Router] Search failed for q='{q}': {e}")
+        return AssetSearchResponse(results=[], total=0)

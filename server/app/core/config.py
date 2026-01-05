@@ -6,11 +6,23 @@ import os
 def get_cors_origins() -> List[str]:
     """
     CORS 허용 출처를 환경변수에서 가져옵니다.
-    환경변수가 없거나 "*"인 경우 모든 출처를 허용합니다.
+    환경변수가 없으면 개발환경 기본값(localhost:3000)을 사용합니다.
     """
     cors_env = os.getenv("CORS_ORIGINS", "")
-    if not cors_env or cors_env == "*":
+
+    # 환경변수가 없으면 개발환경 기본값 사용
+    if not cors_env:
+        return [
+            "http://localhost:3000",
+            "http://localhost:5173",  # Vite 기본 포트
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:5173",
+        ]
+
+    # "*"인 경우 모든 출처 허용
+    if cors_env == "*":
         return ["*"]
+
     # 쉼표로 구분된 여러 출처를 리스트로 변환
     return [origin.strip() for origin in cors_env.split(",") if origin.strip()]
 
