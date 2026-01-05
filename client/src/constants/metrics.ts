@@ -8,7 +8,7 @@ export interface MetricDefinition {
   definition: string
   summary?: string
   tip?: string
-  key: 'pe_ratio' | 'pb_ratio' | 'roe' | 'return_on_equity' | 'debt_ratio' | 'beta' | 'eps' | 'target_mean_price' | 'expense_ratio' | 'total_assets' | 'premium_discount' | 'dividend_yield' | 'inception_date'
+  key: 'pe_ratio' | 'pb_ratio' | 'roe' | 'return_on_equity' | 'debt_ratio' | 'beta' | 'eps' | 'target_mean_price' | 'expense_ratio' | 'total_assets' | 'premium_discount' | 'dividend_yield' | 'inception_date' | 'top_holdings'
 }
 
 export const METRIC_DEFINITIONS: Record<string, MetricDefinition> = {
@@ -117,6 +117,14 @@ export const METRIC_DEFINITIONS: Record<string, MetricDefinition> = {
     summary: 'ETF가 처음 설정된 날짜야. 오래될수록 운용 이력이 풍부해.',
     tip: '3년 이상 운용된 ETF가 신뢰도가 높아. 신생 ETF는 추적 성과를 충분히 확인해봐.',
     key: 'inception_date',
+  },
+  top_holdings: {
+    label: '주요 구성종목',
+    icon: '📈',
+    definition: 'ETF를 구성하는 주요 종목들이야. ETF가 어떤 자산에 투자하는지 알 수 있어서 포트폴리오 중복을 피하고 분산 투자 전략을 세우는 데 도움이 돼.',
+    summary: 'ETF의 주요 구성 종목 Top3를 보여줘.',
+    tip: 'ETF의 구성 종목을 확인하면 내 포트폴리오와 중복되는지 체크할 수 있어. 섹터 집중도도 함께 파악해봐.',
+    key: 'top_holdings',
   },
 }
 
