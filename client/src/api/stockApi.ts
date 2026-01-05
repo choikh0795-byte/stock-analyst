@@ -5,6 +5,7 @@ import type {
   StockInfo,
   UpdateLog,
 } from '../types/stock'
+import type { AssetSearchResponse } from '../types/asset'
 
 /**
  * StockApiClient - Singleton Pattern으로 구현된 주식 API 클라이언트
@@ -176,6 +177,40 @@ class StockApiClient {
         throw new Error(
           error.response?.data?.detail ||
             '업데이트 로그를 가져오는 중 오류가 발생했습니다.'
+        )
+      }
+      throw error
+    }
+  }
+
+  /**
+   * 자산 자동완성 검색
+   * @param query 검색어
+   * @param limit 결과 개수 제한
+   * @param signal AbortController signal
+   * @returns 검색 결과
+   */
+  async searchAssets(
+    query: string,
+    limit: number = 10,
+    signal?: AbortSignal
+  ): Promise<AssetSearchResponse> {
+    try {
+      const response = await this.axiosInstance.get<AssetSearchResponse>(
+        '/api/v1/assets/search',
+        {
+          params: { q: query, limit },
+          signal,
+        }
+      )
+      return response.data
+    } catch (error) {
+      if (axios.isCancel(error)) {
+        throw new Error('Request cancelled')
+      }
+      if (axios.isAxiosError(error)) {
+        throw new Error(
+          error.response?.data?.detail || '자산 검색 중 오류가 발생했습니다.'
         )
       }
       throw error
