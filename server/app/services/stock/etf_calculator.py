@@ -333,42 +333,91 @@ class ETFCalculator:
         logger.warning("[ETFCalculator] 평균 거래량 추출 실패")
         return None
 
-    def extract_52week_change(self, info: Dict) -> Optional[float]:
+    def extract_52week_change(self, info: Dict, ticker_obj=None) -> Optional[float]:
         """
         52주 수익률 추출 (52 Week Change)
 
         1년간 가격 변동률을 수익률 지표로 활용.
 
         Yahoo Finance 필드:
-        - 52WeekChange (우선)
-        - ytdReturn (대안, 연초 대비 수익률)
+        - 52WeekChange (우선, 하지만 값의 범위 확인 필요)
+        - history 기반 직접 계산 (가장 정확)
+        - ytdReturn (최후 대안, 연초 대비 수익률)
 
         Args:
             info: yfinance info 딕셔너리
+            ticker_obj: yfinance Ticker 객체 (history 조회용, 선택사항)
 
         Returns:
             Optional[float]: 52주 수익률 (%, 예: 15.5 = +15.5%)
         """
-        # 1순위: 52WeekChange
+        # 1순위: history를 사용한 직접 계산 (가장 정확)
+        # ticker_obj가 제공된 경우에만 시도
+        if ticker_obj is not None:
+            try:
+                hist = ticker_obj.history(period="1y")
+                if hist is not None and not hist.empty and len(hist) > 5:
+                    # 최소 5일 이상의 데이터가 있어야 신뢰 가능
+                    price_1y_ago = hist['Close'].iloc[0]
+                    current_price = hist['Close'].iloc[-1]
+
+                    if price_1y_ago > 0:
+                        change_pct = ((current_price - price_1y_ago) / price_1y_ago) * 100
+                        logger.info(
+                            f"[ETFCalculator] 52주 수익률 계산 (history): {change_pct:+.2f}% "
+                            f"(1년 전: {price_1y_ago:.2f}, 현재: {current_price:.2f})"
+                        )
+                        return round(change_pct, 2)
+            except Exception as e:
+                logger.debug(f"[ETFCalculator] history 기반 계산 실패: {e}, 대안 시도")
+
+        # 2순위: 52WeekChange (값의 범위 확인 후 사용)
         change_52week = info.get("52WeekChange")
         if change_52week is not None:
             try:
-                # Yahoo는 보통 0.155 형식으로 제공 → 15.5%로 변환
-                change_pct = float(change_52week) * 100
-                logger.info(f"[ETFCalculator] 52주 수익률 추출: {change_pct:+.2f}%")
-                return round(change_pct, 2)
-            except (ValueError, TypeError):
-                pass
+                change_float = float(change_52week)
 
-        # 2순위: ytdReturn (연초 대비 수익률)
+                # 값의 범위로 퍼센트 여부 판별
+                # -1.0 ~ 1.0 범위면 소수 (예: 0.155 = 15.5%)
+                # -100 ~ 100 범위면 이미 퍼센트 (예: 15.5 = 15.5%)
+                if -1.0 <= change_float <= 1.0:
+                    # 소수 형태 → 퍼센트로 변환
+                    change_pct = change_float * 100
+                    logger.info(f"[ETFCalculator] 52주 수익률 추출 (52WeekChange, 소수): {change_pct:+.2f}%")
+                elif -100 <= change_float <= 100:
+                    # 이미 퍼센트 형태 → 그대로 사용
+                    change_pct = change_float
+                    logger.info(f"[ETFCalculator] 52주 수익률 추출 (52WeekChange, 퍼센트): {change_pct:+.2f}%")
+                else:
+                    # 범위를 벗어난 값 → 무시하고 다음 단계로
+                    logger.warning(
+                        f"[ETFCalculator] 52WeekChange 값이 범위를 벗어남: {change_float}, 무시"
+                    )
+                    change_pct = None
+
+                if change_pct is not None:
+                    return round(change_pct, 2)
+            except (ValueError, TypeError) as e:
+                logger.debug(f"[ETFCalculator] 52WeekChange 파싱 실패: {e}")
+
+        # 3순위: ytdReturn (연초 대비 수익률)
         ytd_return = info.get("ytdReturn")
         if ytd_return is not None:
             try:
-                return_pct = float(ytd_return) * 100
+                ytd_float = float(ytd_return)
+                # ytdReturn도 동일하게 범위 확인
+                if -1.0 <= ytd_float <= 1.0:
+                    return_pct = ytd_float * 100
+                elif -100 <= ytd_float <= 100:
+                    return_pct = ytd_float
+                else:
+                    logger.warning(f"[ETFCalculator] ytdReturn 값이 범위를 벗어남: {ytd_float}")
+                    return None
+
                 logger.info(f"[ETFCalculator] YTD 수익률 추출 (대안): {return_pct:+.2f}%")
                 return round(return_pct, 2)
-            except (ValueError, TypeError):
-                pass
+            except (ValueError, TypeError) as e:
+                logger.debug(f"[ETFCalculator] ytdReturn 파싱 실패: {e}")
 
-        logger.warning("[ETFCalculator] 52주 수익률 추출 실패")
+        logger.warning("[ETFCalculator] 52주 수익률 추출 실패: 모든 방법 시도")
         return None

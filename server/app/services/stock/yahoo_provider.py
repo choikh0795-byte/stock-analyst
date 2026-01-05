@@ -286,7 +286,8 @@ class YahooStockProvider(BaseStockProvider):
             result["average_volume"] = average_volume
 
             # 52주 수익률 (수익률 지표)
-            change_52week = self._etf_calculator.extract_52week_change(info)
+            # ticker_obj를 전달하여 history 기반 정확한 계산 가능
+            change_52week = self._etf_calculator.extract_52week_change(info, ticker_obj=stock)
             result["change_52week"] = change_52week
 
             # 구성종목 Top3 (현재 Yahoo에서 제공하지 않으므로 빈 리스트)
