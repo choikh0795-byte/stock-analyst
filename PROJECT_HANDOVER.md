@@ -18,7 +18,7 @@
     - `StockProvider`: 라우터 역할, ticker에 따라 적절한 Provider 선택 및 Fallback 처리
   - AI: OpenAI (GPT-4o-mini) 연동 (`AIService` 클래스).
   - 배포: Render (Free Tier) (예상).
-- **Database:** Supabase (PostgreSQL).
+- **Database:** Supabase (PostgreSQL).    
   - 연결: SQLAlchemy (ORM) + psycopg2.
   - 현재 기능: 종목 분석 결과 캐싱 (`StockAnalysisLog` 테이블, 1시간 TTL).
 
@@ -96,6 +96,7 @@ stock-dashboard/
 **[Action]**
 위 내용을 바탕으로 프로젝트 컨텍스트를 파악해 주세요.
 준비가 되었다면, **"프로젝트 인계 완료. 다음으로 어떤 기능을 개발할까요?"**라고 답변해 주세요.
+
 
 
 
