@@ -177,11 +177,12 @@ class StockService:
         inception_date = info.get("inception_date")
         top_holdings = info.get("top_holdings", [])
 
-        expense_ratio_str = self.formatter.format_expense_ratio(expense_ratio) if expense_ratio is not None else None
-        total_assets_str = self.formatter.format_total_assets(total_assets, is_korean) if total_assets is not None else None
-        premium_discount_str = self.formatter.format_premium_discount(premium_discount) if premium_discount is not None else None
-        dividend_yield_str = self.formatter.format_percentage(dividend_yield, 2) if dividend_yield is not None else None
-        inception_date_str = self.formatter.format_inception_date(inception_date) if inception_date is not None else None
+        # 포맷터가 None 처리를 하므로 항상 호출 (N/A 반환)
+        expense_ratio_str = self.formatter.format_expense_ratio(expense_ratio)
+        total_assets_str = self.formatter.format_total_assets(total_assets, is_korean)
+        premium_discount_str = self.formatter.format_premium_discount(premium_discount)
+        dividend_yield_str = self.formatter.format_percentage(dividend_yield, 2)
+        inception_date_str = self.formatter.format_inception_date(inception_date)
 
         data = {
             "name": stock_name,
