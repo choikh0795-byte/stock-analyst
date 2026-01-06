@@ -244,11 +244,11 @@ export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
           className="w-full text-left active:bg-slate-50 transition-colors duration-200"
           aria-label={isExpanded ? '상세 분석 닫기' : '상세 분석 보기'}
         >
-          {/* Bento Grid 레이아웃: 가로 배치 (모바일/데스크톱 모두) */}
-          <div className="flex flex-row items-start gap-4 sm:gap-6 p-4 sm:p-6">
-            {/* 좌측: 종목명 및 티커 */}
+          {/* Flexible Bento Grid 레이아웃: 모바일 세로 배치, PC 가로 배치 */}
+          <div className="flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-6 p-4 sm:p-6">
+            {/* 상단(모바일) / 좌측(PC): 종목명 및 티커 */}
             <div className="min-w-0 flex-1">
-              <h2 className="text-lg sm:text-xl font-bold text-slate-900 truncate leading-tight">
+              <h2 className="text-lg sm:text-xl font-bold text-slate-900 leading-tight line-clamp-2 break-keep">
                 {data.name}
               </h2>
               <p className="text-xs sm:text-sm text-slate-500 mt-1 truncate">
@@ -256,10 +256,10 @@ export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
               </p>
             </div>
 
-            {/* 우측 그룹: 가격/등락률 + AI 점수 + 화살표 */}
-            <div className="flex items-center gap-3 sm:gap-4 flex-shrink-0">
+            {/* 하단(모바일) / 우측(PC): 가격/등락률 + AI 점수 + 화살표 */}
+            <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4 flex-shrink-0">
               {/* 가격 및 등락률 */}
-              <div className="flex flex-col items-end justify-center flex-shrink-0">
+              <div className="flex flex-col items-start sm:items-end justify-center flex-shrink-0">
                 <div className="text-xl sm:text-2xl font-bold text-slate-900 mb-1 whitespace-nowrap">
                   {data.current_price_str || '-'}
                 </div>
@@ -272,33 +272,36 @@ export const StockCard: React.FC<StockCardProps> = ({ data, aiAnalysis }) => {
                 </div>
               </div>
 
-              {/* AI 점수 뱃지 */}
-              {aiAnalysis && (
+              {/* AI 점수 뱃지 + 화살표 그룹 */}
+              <div className="flex items-center gap-3">
+                {/* AI 점수 뱃지 */}
+                {aiAnalysis && (
+                  <div
+                    className="px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-white font-bold text-xs sm:text-sm shadow-sm whitespace-nowrap"
+                    style={{ backgroundColor: signalColor }}
+                  >
+                    {typeof aiAnalysis.score === 'number' ? aiAnalysis.score.toFixed(1) : String(aiAnalysis.score)}점
+                  </div>
+                )}
+
+                {/* 화살표 */}
                 <div
-                  className="px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-white font-bold text-xs sm:text-sm shadow-sm whitespace-nowrap"
-                  style={{ backgroundColor: signalColor }}
+                  className={`transform transition-transform duration-300 flex-shrink-0 ${
+                    isExpanded ? 'rotate-180' : ''
+                  }`}
                 >
-                  {typeof aiAnalysis.score === 'number' ? aiAnalysis.score.toFixed(1) : String(aiAnalysis.score)}점
+                  <svg
+                    className="w-5 h-5 text-slate-400"
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path d="M19 9l-7 7-7-7"></path>
+                  </svg>
                 </div>
-              )}
-              
-              {/* 화살표 */}
-              <div
-                className={`transform transition-transform duration-300 flex-shrink-0 ${
-                  isExpanded ? 'rotate-180' : ''
-                }`}
-              >
-                <svg
-                  className="w-5 h-5 text-slate-400"
-                  fill="none"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path d="M19 9l-7 7-7-7"></path>
-                </svg>
               </div>
             </div>
           </div>
