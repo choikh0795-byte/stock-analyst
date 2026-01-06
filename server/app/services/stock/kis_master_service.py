@@ -124,26 +124,21 @@ class KisMasterService:
     ]
 
     # 미국 주식 필드 구조 (고정 폭)
-    # KIS API 문서 기준: 심볼(9), 한글명(40), 영문명(40), 등...
-    US_FIELD_SPECS = [
-        9,   # 심볼 (Symbol)
-        40,  # 한글종목명 (Korean Name)
-        40,  # 현지종목명 (English Name)
-        3,   # 국가코드
-        1,   # 거래소구분 (N: NASDAQ, A: AMEX, Y: NYSE)
-        9,   # 액면가
-        1,   # 통화단위
-    ]
+    # KIS API 문서 기준 - 실제 바이트 오프셋 기반으로 수동 파싱
+    # 주의: 실제 파일 포맷과 문서가 다를 수 있어 수동 파싱 방식 사용
+    US_FIELD_OFFSETS = {
+        'symbol': (0, 10),        # 심볼 (0-10 바이트)
+        'name_kr': (10, 50),      # 한글종목명 (10-50 바이트, 40자)
+        'name_en': (50, 90),      # 현지종목명 (50-90 바이트, 40자)
+        'country_code': (90, 93),  # 국가코드 (90-93 바이트, 3자)
+        'exchange_code': (93, 94), # 거래소구분 (93-94 바이트, 1자)
+        'par_value': (94, 103),    # 액면가 (94-103 바이트, 9자)
+        'currency': (103, 104),    # 통화단위 (103-104 바이트, 1자)
+    }
 
-    US_COLUMNS = [
-        '심볼',
-        '한글종목명',
-        '현지종목명',
-        '국가코드',
-        '거래소구분',
-        '액면가',
-        '통화단위',
-    ]
+    # 레거시 호환을 위해 유지 (사용 안 함)
+    US_FIELD_SPECS = [10, 40, 40, 3, 1, 9, 1]
+    US_COLUMNS = ['심볼', '한글종목명', '현지종목명', '국가코드', '거래소구분', '액면가', '통화단위']
 
     # 한글 초성 리스트
     CHOSUNG_LIST = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ']
@@ -285,6 +280,9 @@ class KisMasterService:
         """
         미국 주식 마스터 파일을 파싱하여 메모리 캐시에 저장합니다.
 
+        고정 폭 파일을 바이트 오프셋 기반으로 수동 파싱하여
+        심볼 추출 오류 및 중복 키 문제를 방지합니다.
+
         Args:
             file_path: 마스터 파일 경로
             exchange: 거래소 구분 ("NASDAQ", "NYSE", "AMEX")
@@ -296,76 +294,114 @@ class KisMasterService:
             logger.error(f"[KisMasterService] 마스터 파일이 존재하지 않음: {file_path}")
             return 0
 
+        count = 0
+        duplicate_count = 0
+        invalid_count = 0
+
         try:
             logger.info(f"[KisMasterService] {exchange} 마스터 파일 파싱 시작: {file_path}")
 
-            # 고정 폭 파일 파싱 (인코딩 에러 처리)
-            try:
-                df = pd.read_fwf(
-                    file_path,
-                    widths=self.US_FIELD_SPECS,
-                    names=self.US_COLUMNS,
-                    encoding='cp949',
-                    encoding_errors='replace'  # 인코딩 에러 시 '?' 문자로 대체
-                )
-            except UnicodeDecodeError as e:
-                logger.error(f"[KisMasterService] 인코딩 에러 발생: {e}")
-                # 대체 인코딩 시도 (euc-kr)
-                try:
-                    df = pd.read_fwf(
-                        file_path,
-                        widths=self.US_FIELD_SPECS,
-                        names=self.US_COLUMNS,
-                        encoding='euc-kr',
-                        encoding_errors='replace'
-                    )
-                except Exception as e2:
-                    logger.error(f"[KisMasterService] 대체 인코딩도 실패: {e2}")
-                    return 0
+            # 다중 인코딩 시도 (cp949 → utf-8)
+            encodings = ['cp949', 'utf-8', 'euc-kr']
+            lines = None
 
-            # 데이터프레임을 순회하며 메모리 캐시에 저장
-            count = 0
-            for idx, row in df.iterrows():
+            for encoding in encodings:
                 try:
-                    # 심볼 추출 (공백 제거)
-                    symbol = str(row['심볼']).strip()
-                    if not symbol or symbol == 'nan' or len(symbol) == 0:
+                    with open(file_path, 'r', encoding=encoding, errors='replace') as f:
+                        lines = f.readlines()
+                    logger.info(f"[KisMasterService] 인코딩 성공: {encoding}")
+                    break
+                except Exception as e:
+                    logger.warning(f"[KisMasterService] 인코딩 시도 실패 ({encoding}): {e}")
+                    continue
+
+            if not lines:
+                logger.error(f"[KisMasterService] 모든 인코딩 시도 실패")
+                return 0
+
+            # 각 라인을 바이트 오프셋 기반으로 파싱
+            for line_num, line in enumerate(lines, start=1):
+                try:
+                    # 라인이 너무 짧으면 스킵
+                    if len(line.strip()) < 50:
                         continue
 
-                    # 티커 생성 (심볼만 사용, 거래소 suffix는 추가하지 않음)
-                    ticker = symbol
+                    # 바이트 오프셋 기반으로 필드 추출
+                    offsets = self.US_FIELD_OFFSETS
 
-                    # 한글 종목명
-                    name_kr = str(row['한글종목명']).strip()
-                    if name_kr == 'nan' or name_kr == '' or name_kr == '?' or '?' in name_kr:
+                    # 심볼 추출 (0-10 바이트)
+                    symbol_raw = line[offsets['symbol'][0]:offsets['symbol'][1]]
+                    symbol = symbol_raw.strip()
+
+                    # 심볼 유효성 검사 (엄격)
+                    if not symbol or symbol == 'nan' or len(symbol) == 0:
+                        invalid_count += 1
+                        continue
+
+                    # 특수문자 제거 (알파벳과 숫자만 허용)
+                    symbol = ''.join(c for c in symbol if c.isalnum() or c == '.')
+
+                    if not symbol or len(symbol) == 0:
+                        invalid_count += 1
+                        continue
+
+                    # 티커 생성 (심볼만 사용)
+                    ticker = symbol.upper()
+
+                    # 중복 체크 (이미 존재하는 티커는 스킵)
+                    if ticker in self._code_to_detail:
+                        duplicate_count += 1
+                        logger.debug(
+                            f"[KisMasterService] 중복 티커 스킵: {ticker} "
+                            f"(라인: {line_num}, 거래소: {exchange})"
+                        )
+                        continue
+
+                    # 한글 종목명 추출 (10-50 바이트)
+                    name_kr_raw = line[offsets['name_kr'][0]:offsets['name_kr'][1]]
+                    name_kr = name_kr_raw.strip()
+
+                    # 한글명 유효성 검사 (?, nan, 공백 제거)
+                    if (not name_kr or name_kr == 'nan' or name_kr == '' or
+                        name_kr == '?' or '?' in name_kr or
+                        all(c in ' ?' for c in name_kr)):
                         name_kr = None
 
-                    # 영문 종목명
-                    name_en = str(row['현지종목명']).strip()
-                    if name_en == 'nan' or name_en == '':
+                    # 영문 종목명 추출 (50-90 바이트)
+                    name_en_raw = line[offsets['name_en'][0]:offsets['name_en'][1]]
+                    name_en = name_en_raw.strip()
+
+                    # 영문명 유효성 검사
+                    if not name_en or name_en == 'nan' or name_en == '':
                         name_en = None
 
-                    # 한글명과 영문명 둘 다 없으면 스킵 (필터링 완화)
+                    # 한글명과 영문명 둘 다 없으면 스킵
                     if not name_kr and not name_en:
+                        invalid_count += 1
                         continue
 
-                    # name_kr이 없으면 name_en을 복사 (검색 가능하도록)
+                    # name_kr이 없으면 name_en을 사용 (검색 가능하도록)
                     if not name_kr and name_en:
                         name_kr = name_en
 
-                    # 거래소 구분 코드 확인
-                    exchange_code = str(row.get('거래소구분', '')).strip()
+                    # 거래소 구분 코드 추출 (93-94 바이트)
+                    exchange_code_raw = line[offsets['exchange_code'][0]:offsets['exchange_code'][1]]
+                    exchange_code = exchange_code_raw.strip()
+
+                    # 국가 코드 추출 (90-93 바이트)
+                    country_code_raw = line[offsets['country_code'][0]:offsets['country_code'][1]]
+                    country_code = country_code_raw.strip()
 
                     # 상세 정보 구성
                     detail = {
                         "name": name_kr if name_kr else name_en,
-                        "name_kr": name_kr,  # 명시적으로 name_kr 추가
+                        "name_kr": name_kr,
                         "name_en": name_en,
                         "market": exchange,
                         "exchange": exchange,
                         "symbol": symbol,
                         "exchange_code": exchange_code,
-                        "country_code": str(row.get('국가코드', '')).strip(),
+                        "country_code": country_code,
                     }
 
                     # 매핑 저장 (name_kr과 name_en 둘 다 등록)
@@ -379,10 +415,13 @@ class KisMasterService:
                     count += 1
 
                 except Exception as e:
-                    logger.warning(f"[KisMasterService] 행 파싱 중 오류 (row {idx}): {e}")
+                    logger.warning(f"[KisMasterService] 행 파싱 중 오류 (라인 {line_num}): {e}")
                     continue
 
-            logger.info(f"[KisMasterService] {exchange} 마스터 파일 파싱 완료: {count}개 종목")
+            logger.info(
+                f"[KisMasterService] {exchange} 마스터 파일 파싱 완료: "
+                f"{count}개 종목 (중복: {duplicate_count}, 무효: {invalid_count})"
+            )
             return count
 
         except Exception as e:
