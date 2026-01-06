@@ -174,10 +174,17 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
     }, 100)
   }
 
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !loading) {
-      setShowAutocomplete(false)
-      onSearch()
+      // If autocomplete is showing and has results, select the first one
+      if (showAutocomplete && searchResults.length > 0) {
+        e.preventDefault() // Prevent form submission
+        handleSelectAsset(searchResults[0])
+      } else {
+        // Otherwise, perform search with current input
+        setShowAutocomplete(false)
+        onSearch()
+      }
     }
     if (e.key === 'Escape') {
       setShowAutocomplete(false)
@@ -232,7 +239,7 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
           placeholder="티커 또는 종목명을 입력하세요 (예: NVDA, 엔비디아, 삼성전자)"
           value={displayValue}
           onChange={(e) => handleInputChange(e.target.value)}
-          onKeyPress={handleKeyPress}
+          onKeyDown={handleKeyDown}
           onBlur={handleBlur}
           disabled={loading}
         />
