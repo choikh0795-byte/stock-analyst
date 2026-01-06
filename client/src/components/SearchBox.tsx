@@ -23,10 +23,18 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
   const loadingMessage = useStockStore((state) => state.loadingMessage)
   const [searchResults, setSearchResults] = useState<Asset[]>([])
   const [showAutocomplete, setShowAutocomplete] = useState(false)
+  const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null)
+  const [displayValue, setDisplayValue] = useState(ticker)
   const abortControllerRef = useRef<AbortController | null>(null)
   const debounceTimerRef = useRef<number | null>(null)
+  const searchBoxRef = useRef<HTMLDivElement>(null)
 
-  // Debounced search effect
+  // Sync displayValue with ticker prop (for external updates)
+  useEffect(() => {
+    setDisplayValue(ticker)
+  }, [ticker])
+
+  // Debounced search effect - use displayValue for autocomplete
   useEffect(() => {
     // Clear previous timer
     if (debounceTimerRef.current) {
@@ -34,15 +42,20 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
     }
 
     // Clear results if input is empty
-    if (!ticker.trim()) {
+    if (!displayValue.trim()) {
       setSearchResults([])
       setShowAutocomplete(false)
       return
     }
 
+    // Don't show autocomplete if an asset is already selected
+    if (selectedAsset) {
+      return
+    }
+
     // Set new debounce timer (300ms)
     debounceTimerRef.current = window.setTimeout(() => {
-      handleSearch(ticker)
+      handleSearch(displayValue)
     }, 300)
 
     return () => {
@@ -50,7 +63,7 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
         clearTimeout(debounceTimerRef.current)
       }
     }
-  }, [ticker])
+  }, [displayValue, selectedAsset])
 
   const handleSearch = async (query: string) => {
     // Cancel previous request
@@ -93,10 +106,21 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
   }
 
   const handleSelectAsset = (asset: Asset) => {
+    // Set display value to asset name (Korean preferred)
+    const displayName = asset.name_kr || asset.name_en
+    setDisplayValue(displayName)
+
+    // Store selected asset
+    setSelectedAsset(asset)
+
+    // Notify parent with ticker (for internal use)
     onTickerChange(asset.ticker)
+
+    // Close autocomplete
     setShowAutocomplete(false)
     setSearchResults([])
-    // Trigger analysis after a short delay to allow state update
+
+    // Trigger analysis immediately
     setTimeout(() => {
       onSearch()
     }, 100)
@@ -113,21 +137,55 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
   }
 
   const handleInputChange = (value: string) => {
+    // Update display value
+    setDisplayValue(value)
+
+    // Clear selected asset when user manually types
+    setSelectedAsset(null)
+
+    // Notify parent
     onTickerChange(value)
+
+    // Show autocomplete if there's input
     if (value.trim()) {
       setShowAutocomplete(true)
+    } else {
+      setShowAutocomplete(false)
     }
   }
 
+  const handleBlur = () => {
+    // Close autocomplete when clicking outside
+    // Use setTimeout to allow click events on autocomplete items to fire first
+    setTimeout(() => {
+      setShowAutocomplete(false)
+    }, 200)
+  }
+
+  // Close autocomplete when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchBoxRef.current && !searchBoxRef.current.contains(event.target as Node)) {
+        setShowAutocomplete(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
+
   return (
-    <div className="search-section max-w-2xl mx-auto w-full">
+    <div className="search-section max-w-2xl mx-auto w-full" ref={searchBoxRef}>
       <div className="search-box">
         <input
           type="text"
           placeholder="티커 또는 종목명을 입력하세요 (예: NVDA, 엔비디아, 삼성전자)"
-          value={ticker}
+          value={displayValue}
           onChange={(e) => handleInputChange(e.target.value)}
           onKeyPress={handleKeyPress}
+          onBlur={handleBlur}
           disabled={loading}
         />
         <button onClick={onSearch} disabled={loading}>
