@@ -77,6 +77,8 @@
 - `KisMasterService`: 한국 종목 마스터 데이터 관리
 - `NaverStockSearchService`: 네이버 종목 검색
 - `UpdateLogService`: 업데이트 로그 관리
+- **`AssetSearchService` (NEW)**: 자동완성 검색 로직 (한글, 초성, 영문 검색)
+- **`AssetSearchIndexBuilder` (NEW)**: 검색 인덱스 배치 생성
 
 **프론트엔드:**
 - `StockApiClient` (Singleton Pattern): 모든 API 통신 클래스
@@ -118,7 +120,13 @@
   - 배당률, Beta
   - 목표가, 시가총액
 - 한국 종목 한글명 자동 매핑 (KIS 마스터 데이터)
-- 종목 검색 기능 (티커, 한글 종목명, 기업명 지원)
+- **자동완성 검색 기능** (NEW):
+  - 티커, 한글 종목명, 영문명, 초성 검색 지원
+  - 실시간 자동완성 드롭다운 (300ms 디바운스)
+  - 검색어 하이라이트 표시
+  - 우선순위 정렬 (완전일치 > 접두사 일치 > 토큰 일치)
+  - 한국 종목 선택 시 한글명으로 검색 자동 실행
+  - AbortController 기반 요청 취소 (성능 최적화)
 
 ### AI 기반 분석
 - OpenAI GPT-4o-mini를 활용한 종합 분석
@@ -180,7 +188,8 @@ stock-dashboard/
 │   │   ├── stores/                  # Zustand 스토어 (기타)
 │   │   │   └── useUpdateLogStore.ts
 │   │   ├── types/                   # TypeScript 타입 정의
-│   │   │   └── stock.ts
+│   │   │   ├── stock.ts
+│   │   │   └── asset.ts             # 자산 타입 정의 (자동완성)
 │   │   ├── utils/                   # 유틸리티 함수
 │   │   │   └── stockUtils.ts
 │   │   ├── App.tsx                  # 메인 앱 컴포넌트
@@ -200,7 +209,8 @@ stock-dashboard/
     │   │   │   └── update_log_router.py
     │   │   └── v1/                  # API v1
     │   │       ├── endpoints/       # 엔드포인트 라우터
-    │   │       │   └── stocks.py    # 주식 관련 엔드포인트
+    │   │       │   ├── stocks.py    # 주식 관련 엔드포인트
+    │   │       │   └── assets.py    # 자산 검색 엔드포인트 (자동완성)
     │   │       └── __init__.py      # API 라우터 통합
     │   ├── core/                    # 핵심 설정 및 의존성
     │   │   ├── config.py            # 환경 변수 설정 (Settings)
@@ -208,10 +218,12 @@ stock-dashboard/
     │   │   └── dependencies.py      # 의존성 주입 함수
     │   ├── models/                  # SQLAlchemy 모델 (DB 테이블)
     │   │   ├── stock.py             # StockAnalysisLog 모델
-    │   │   └── update_log.py        # UpdateLog 모델
+    │   │   ├── update_log.py        # UpdateLog 모델
+    │   │   └── asset_search_index.py # AssetSearchIndex 모델 (자동완성)
     │   ├── schemas/                 # Pydantic 스키마 (요청/응답 모델)
     │   │   ├── stock.py             # 주식 관련 스키마
-    │   │   └── update_log.py        # 업데이트 로그 스키마
+    │   │   ├── update_log.py        # 업데이트 로그 스키마
+    │   │   └── asset.py             # 자산 관련 스키마 (자동완성)
     │   ├── services/                # 비즈니스 로직 (Service Layer)
     │   │   ├── stock/               # 주식 관련 서비스
     │   │   │   ├── service.py       # StockService (Facade)
@@ -231,6 +243,10 @@ stock-dashboard/
     │   │   │   ├── naver_search_service.py # NaverStockSearchService
     │   │   │   ├── token_manager.py # KIS 토큰 관리
     │   │   │   ├── asset_type.py    # 자산 타입 유틸
+    │   │   │   └── __init__.py
+    │   │   ├── search/              # 검색 관련 서비스 (자동완성)
+    │   │   │   ├── search_service.py    # AssetSearchService (검색 로직)
+    │   │   │   ├── index_builder.py     # AssetSearchIndexBuilder (인덱스 생성)
     │   │   │   └── __init__.py
     │   │   ├── ai_service.py        # AIService (OpenAI 통신)
     │   │   ├── update_log_service.py # UpdateLogService
@@ -253,6 +269,20 @@ stock-dashboard/
 - `GET /api/v1/stock/{ticker}`: 주식 정보 조회 (캐시 확인)
 - `POST /api/v1/stock/analyze`: 주식 정보 + AI 분석 (캐시 확인)
 - `POST /api/v1/stock/analyze-ai`: AI 분석만 수행 (캐시 무시)
+
+### 자산 검색 API (`/api/v1/assets`) - 자동완성 (NEW)
+- `GET /api/v1/assets/search`: 자동완성 검색
+  - Query Parameters:
+    - `q`: 검색 쿼리 (한글, 초성, 영문, 티커)
+    - `limit`: 최대 결과 개수 (기본값: 10, 최대: 100)
+  - Response:
+    - `results`: 검색 결과 배열 (AssetSchema)
+    - `total`: 총 결과 개수
+  - 검색 타입:
+    - 초성 검색: "ㅅㅅㅈㅈ" → 삼성전자
+    - 한글 검색: "삼성" → 삼성전자, 삼성물산, ...
+    - 영문/숫자 검색: "aapl" → AAPL (Apple Inc.)
+  - 우선순위 정렬: 완전일치 > 접두사 일치 > 토큰 일치
 
 ### 업데이트 로그 API (`/api/updates`)
 - `GET /api/updates/`: 업데이트 로그 전체 조회 (최신순)
@@ -319,9 +349,93 @@ VITE_API_BASE_URL=http://localhost:8000
 - `category` (String): 업데이트 카테고리
 - `content` (String): 업데이트 내용
 
+### AssetSearchIndex (NEW)
+자산 검색 인덱스 테이블 (자동완성 기능)
+
+**컬럼:**
+- `id` (BigInteger, PK, Auto Increment): 고유 식별자
+- `ticker` (String(20), Indexed): 종목 티커 코드
+- `asset_type` (Enum): 자산 유형 (STOCK_KR, STOCK_US, ETF)
+- `name_kr` (String(100), Nullable): 한글 이름
+- `name_en` (String(150), Nullable): 영문 이름
+- `initial_kr` (String(50), Indexed, Nullable): 한글 초성 (예: "삼성전자" → "ㅅㅅㅈㅈ")
+- `search_tokens` (Array[Text], GIN Index, Nullable): 검색용 토큰 배열 (prefix 검색용)
+- `exchange` (String(20), Nullable): 거래소 코드 (KRX, NASDAQ, NYSE 등)
+- `is_active` (Boolean, Default: True): 활성화 여부
+- `created_at` (DateTime): 생성 시간 (자동)
+- `updated_at` (DateTime, Nullable): 업데이트 시간 (자동 갱신)
+
+**인덱스:**
+- `idx_asset_search_tokens_gin`: search_tokens 배열용 GIN 인덱스 (PostgreSQL)
+- `idx_asset_type_active`: (asset_type, is_active) 복합 인덱스
+
+**용도:**
+- 자동완성 검색 성능 최적화
+- 한글 초성 검색 지원 (ㅅㅅㅈㅈ → 삼성전자)
+- 영문/숫자 prefix 검색 (aa → AAPL, Apple Inc.)
+- 우선순위 정렬을 위한 메타데이터 저장
+
 ---
 
-## 8. 다음 목표 (Next Goals)
+## 8. 최근 주요 업데이트 (Recent Updates)
+
+### 자동완성 검색 기능 구현 (2026-01)
+최근 구현된 자동완성 검색 기능의 주요 업데이트 내역입니다.
+
+#### 주요 개선사항 (Git History)
+1. **자동완성 검색 MVP 구현** (PR #37)
+   - 검색 인덱스 테이블 (`asset_search_index`) 생성
+   - AssetSearchService 구현 (한글, 초성, 영문 검색 지원)
+   - 프론트엔드 SearchBox 자동완성 드롭다운 추가
+   - 300ms 디바운스 적용
+
+2. **검색 품질 고도화** (PR #36)
+   - 우선순위 정렬 로직 구현 (완전일치 > 접두사 일치 > 토큰 일치)
+   - 영문 검색 성능 개선 (ticker/name_en prefix 우선 검색)
+   - MatchType Enum 도입 (EXACT, PREFIX, TOKEN)
+
+3. **초성 검색 기능 수정** (PR #40)
+   - 초성 검색 반환 구조 개선
+   - 초성 검색 정확도 향상
+
+4. **CORS 및 500 오류 방어 로직** (PR #39)
+   - CORS 설정 강화
+   - 검색 API 500 오류 방어 로직 추가 (빈 결과 반환)
+
+5. **자동완성 선택 시 UX 개선** (PR #41, #42)
+   - 자동완성 선택 시 올바른 티커로 검색
+   - 한글 종목명 유지 및 드롭다운 닫기 개선
+
+6. **종목명으로 검색 기능** (커밋: 1d50d2c)
+   - 한국 종목 선택 시 한글 종목명으로 자동 검색 실행
+   - 사용자 경험 향상
+
+7. **검색 결과 하이라이트 표시** (PR #43)
+   - 자동완성 검색 결과에서 검색어 하이라이트 표시
+   - `highlightMatch` 함수 구현 (정규식 기반)
+   - 노란색 배경 + 볼드체로 시각화
+
+#### 기술 스택
+- **프론트엔드**:
+  - React 자동완성 드롭다운
+  - AbortController 기반 요청 취소
+  - 디바운스 (300ms)
+  - 하이라이트 표시 (정규식 기반)
+
+- **백엔드**:
+  - PostgreSQL GIN 인덱스 (search_tokens 배열)
+  - SQLAlchemy ORM
+  - 한글 초성 추출 유틸리티
+  - Prefix 토큰 생성 유틸리티
+
+- **데이터베이스**:
+  - asset_search_index 테이블
+  - GIN 인덱스 (성능 최적화)
+  - Enum 타입 (AssetType)
+
+---
+
+## 9. 다음 목표 (Next Goals)
 
 이제 DB를 활용한 심화 기능들을 개발하려고 합니다.
 
@@ -340,7 +454,7 @@ VITE_API_BASE_URL=http://localhost:8000
 
 ---
 
-## 9. 주요 참고 문서
+## 10. 주요 참고 문서
 
 프로젝트 루트 디렉토리에 다음 문서들이 있습니다:
 - `README.md`: 프로젝트 개요 및 시작 가이드
