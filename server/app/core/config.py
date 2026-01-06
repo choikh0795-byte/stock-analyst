@@ -7,6 +7,9 @@ def get_cors_origins() -> List[str]:
     """
     CORS 허용 출처를 환경변수에서 가져옵니다.
     환경변수가 없으면 개발환경 기본값(localhost:3000)을 사용합니다.
+
+    프로덕션 환경 설정 예시:
+    CORS_ORIGINS=https://stock-analyst-alpha.vercel.app,https://yourdomain.com
     """
     cors_env = os.getenv("CORS_ORIGINS", "")
 
@@ -19,12 +22,19 @@ def get_cors_origins() -> List[str]:
             "http://127.0.0.1:5173",
         ]
 
-    # "*"인 경우 모든 출처 허용
+    # "*"인 경우 모든 출처 허용 (프로덕션에서는 권장하지 않음)
     if cors_env == "*":
         return ["*"]
 
     # 쉼표로 구분된 여러 출처를 리스트로 변환
-    return [origin.strip() for origin in cors_env.split(",") if origin.strip()]
+    origins = [origin.strip() for origin in cors_env.split(",") if origin.strip()]
+
+    # 로깅을 위해 출처 목록 출력
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"[CORS] 허용된 출처: {origins}")
+
+    return origins
 
 
 class Settings(BaseSettings):
