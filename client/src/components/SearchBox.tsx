@@ -12,6 +12,43 @@ interface SearchBoxProps {
 }
 
 /**
+ * 검색어와 일치하는 텍스트 부분을 하이라이트 처리
+ */
+const highlightMatch = (text: string, query: string): React.ReactNode => {
+  if (!query.trim() || !text) return text
+
+  // Escape special regex characters
+  const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+  try {
+    const regex = new RegExp(`(${escapedQuery})`, 'gi')
+    const parts = text.split(regex)
+
+    return parts.map((part, index) => {
+      if (part.toLowerCase() === query.toLowerCase()) {
+        return (
+          <mark
+            key={index}
+            style={{
+              backgroundColor: '#fef08a',
+              fontWeight: 600,
+              padding: '0 2px',
+              borderRadius: '2px',
+            }}
+          >
+            {part}
+          </mark>
+        )
+      }
+      return <span key={index}>{part}</span>
+    })
+  } catch (error) {
+    // If regex fails, return original text
+    return text
+  }
+}
+
+/**
  * 주식 티커 검색 입력 컴포넌트
  */
 export const SearchBox: React.FC<SearchBoxProps> = ({
@@ -238,7 +275,7 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
               }}
             >
               <div style={{ fontWeight: 600, fontSize: '14px', color: '#111827' }}>
-                {asset.name_kr || asset.name_en}
+                {highlightMatch(asset.name_kr || asset.name_en, displayValue)}
               </div>
               <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>
                 {asset.ticker} · {asset.exchange} · {asset.asset_type}
