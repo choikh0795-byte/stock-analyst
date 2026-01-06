@@ -61,12 +61,13 @@ def create_application() -> FastAPI:
         logger.warning("[Database] DATABASE_URL이 설정되지 않아 테이블 생성을 건너뜁니다.")
     
     # CORS 설정
+    logger.info(f"[CORS] 설정된 허용 출처: {settings.CORS_ORIGINS}")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.CORS_ORIGINS,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["*"],  # 모든 HTTP 메서드 허용 (GET, POST, PUT, DELETE 등)
+        allow_headers=["*"],  # 모든 헤더 허용
     )
     
     # API 라우터 등록
