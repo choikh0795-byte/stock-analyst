@@ -11,6 +11,7 @@ from app.schemas.stock import (
     TickerSearchResponse,
 )
 from app.services.stock.service import StockService
+from app.services.stock.provider import StockProvider
 from app.services.ai_service import AIService
 from app.core.dependencies import get_stock_service, get_ai_service
 from app.core.database import get_db
@@ -146,9 +147,23 @@ async def analyze_stock(
 
         ticker = request.ticker.upper()
 
-        # Validate ticker format
+        # Smart ticker conversion: If input is not in ticker format (e.g., Korean name like "삼성전자"),
+        # convert it to ticker using search_ticker()
+        if not StockProvider._is_ticker_format(ticker):
+            logger.info(f"[Stocks Router] Input is not in ticker format: '{request.ticker}'. Attempting to convert...")
+            try:
+                ticker = stock_service.search_ticker(request.ticker)
+                logger.info(f"[Stocks Router] Successfully converted '{request.ticker}' to ticker: '{ticker}'")
+            except ValueError as e:
+                logger.warning(f"[Stocks Router] Ticker search failed for '{request.ticker}': {e}")
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"'{request.ticker}'에 대한 종목을 찾을 수 없습니다. 티커 심볼(예: 005930.KS, AAPL)을 직접 입력해주세요."
+                )
+
+        # Validate ticker format (after conversion)
         if not validate_ticker_format(ticker):
-            logger.warning(f"[Stocks Router] Invalid ticker format: '{request.ticker}'")
+            logger.warning(f"[Stocks Router] Invalid ticker format: '{ticker}' (original: '{request.ticker}')")
             raise HTTPException(
                 status_code=400,
                 detail=f"잘못된 티커 형식입니다: '{request.ticker}'. "
