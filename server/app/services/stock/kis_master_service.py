@@ -280,9 +280,14 @@ class KisMasterService:
         """
         미국 주식 마스터 파일을 파싱하여 메모리 캐시에 저장합니다.
 
-        고정 폭 파일을 바이트 오프셋 기반으로 수동 파싱하며,
-        탭 문자(\t) 제거 및 엄격한 유효성 검사를 통해
-        데이터 오염 및 중복 키 문제를 방지합니다.
+        *** 중요 ***
+        실제 파일 구조는 고정 폭이 아닌 '탭(\t) 구분자' 형식입니다.
+        각 라인을 split('\t')로 나눈 뒤 인덱스로 접근합니다.
+
+        컬럼 매핑:
+        - Index 4: 티커/심볼 (예: 'AACB')
+        - Index 6: 한글 종목명 (예: '아티우스 애퀴지션 2')
+        - Index 7: 영문 종목명 (예: 'ARTIUS II ACQUISITION INC')
 
         Args:
             file_path: 마스터 파일 경로
@@ -298,10 +303,9 @@ class KisMasterService:
         count = 0
         duplicate_count = 0
         invalid_count = 0
-        tab_error_count = 0
 
         try:
-            logger.info(f"[KisMasterService] {exchange} 마스터 파일 파싱 시작: {file_path}")
+            logger.info(f"[KisMasterService] {exchange} 마스터 파일 파싱 시작 (탭 구분자 방식): {file_path}")
 
             # 다중 인코딩 시도 (cp949 → utf-8 → euc-kr)
             encodings = ['cp949', 'utf-8', 'euc-kr']
@@ -321,71 +325,55 @@ class KisMasterService:
                 logger.error(f"[KisMasterService] 모든 인코딩 시도 실패")
                 return 0
 
-            # 각 라인을 바이트 오프셋 기반으로 파싱
+            # 각 라인을 탭(\t)으로 분리하여 파싱
             for line_num, raw_line in enumerate(lines, start=1):
                 try:
                     # ========================================
-                    # STEP 1: 탭 문자 완전 제거 (데이터 정제)
+                    # STEP 1: 탭(\t)으로 라인 분리
                     # ========================================
-                    # 모든 탭(\t) 문자를 공백으로 치환 후 strip
-                    line_cleaned = raw_line.replace('\t', '').strip()
-
-                    # 라인이 너무 짧으면 스킵 (최소 90바이트 이상 필요)
-                    if len(line_cleaned) < 90:
+                    raw_line = raw_line.strip()
+                    if not raw_line:
                         continue
 
-                    # ========================================
-                    # STEP 2: 바이트 오프셋 기반 필드 추출
-                    # ========================================
-                    offsets = self.US_FIELD_OFFSETS
+                    fields = raw_line.split('\t')
 
-                    # 심볼 추출 (0-9 바이트)
-                    symbol_raw = line_cleaned[offsets['symbol'][0]:offsets['symbol'][1]]
-                    symbol = symbol_raw.strip()
-
-                    # ========================================
-                    # STEP 3: 심볼 엄격 검증 (탭/오염 방지)
-                    # ========================================
-                    # 1) 탭 문자 포함 체크 (방어 코드)
-                    if '\t' in symbol:
-                        tab_error_count += 1
-                        logger.error(
-                            f"[KisMasterService] 탭 문자 발견! ticker='{symbol}' "
-                            f"(라인: {line_num}, 거래소: {exchange}) → SKIP"
-                        )
-                        continue
-
-                    # 2) 'US', 'NAS', 'NYSE' 등 접두어 포함 체크
-                    if symbol.startswith(('US', 'NAS', 'NYSE', 'AMEX')):
-                        invalid_count += 1
-                        logger.warning(
-                            f"[KisMasterService] 잘못된 심볼 접두어: '{symbol}' "
-                            f"(라인: {line_num}) → SKIP"
-                        )
-                        continue
-
-                    # 3) 심볼 기본 유효성 검사
-                    if not symbol or symbol == 'nan' or len(symbol) == 0:
+                    # 최소 필드 수 검증 (Index 7까지 필요하므로 8개 이상)
+                    if len(fields) < 8:
                         invalid_count += 1
                         continue
 
-                    # 4) 특수문자 제거 (알파벳, 숫자만 허용, 점(.) 허용)
-                    symbol_clean = ''.join(c for c in symbol if c.isalnum() or c == '.')
+                    # ========================================
+                    # STEP 2: 티커/심볼 추출 및 정제 (Index 4)
+                    # ========================================
+                    symbol_raw = fields[4].strip() if len(fields) > 4 else ''
 
-                    if not symbol_clean or len(symbol_clean) == 0:
+                    # 헤더 행 스킵 (US로 시작하거나 숫자만 있는 경우)
+                    if (symbol_raw.startswith('US') or
+                        symbol_raw.isdigit()):
                         invalid_count += 1
                         continue
 
-                    # 5) 심볼 길이 검증 (1~10자 이내)
-                    if not (1 <= len(symbol_clean) <= 10):
+                    # 시장 코드 제거 (NAS, NYS, AMS 등)
+                    # 예: 'AACBNAS' → 'AACB'
+                    for market_code in ['NAS', 'NYS', 'AMS', 'NASDAQ', 'NYSE', 'AMEX']:
+                        if symbol_raw.endswith(market_code):
+                            symbol_raw = symbol_raw[:-len(market_code)]
+                            break
+
+                    # 특수문자 제거 (알파벳, 숫자만 허용, 점(.) 허용)
+                    symbol_clean = ''.join(c for c in symbol_raw if c.isalnum() or c == '.')
+                    symbol_clean = symbol_clean.strip()
+
+                    # 심볼 유효성 검사
+                    if (not symbol_clean or
+                        symbol_clean == 'nan' or
+                        len(symbol_clean) == 0 or
+                        not (1 <= len(symbol_clean) <= 10)):
                         invalid_count += 1
-                        logger.warning(
-                            f"[KisMasterService] 심볼 길이 초과: '{symbol_clean}' ({len(symbol_clean)}자) → SKIP"
-                        )
                         continue
 
                     # ========================================
-                    # STEP 4: 티커 생성 및 중복 체크
+                    # STEP 3: 티커 생성 및 중복 체크
                     # ========================================
                     ticker = symbol_clean.upper()
 
@@ -399,36 +387,38 @@ class KisMasterService:
                         continue
 
                     # ========================================
-                    # STEP 5: 한글 종목명 추출 및 정제
+                    # STEP 4: 한글 종목명 추출 및 정제 (Index 6)
                     # ========================================
-                    name_kr_raw = line_cleaned[offsets['name_kr'][0]:offsets['name_kr'][1]]
-                    name_kr = name_kr_raw.replace('\t', '').strip()  # 탭 제거 + 공백 제거
+                    name_kr_raw = fields[6].strip() if len(fields) > 6 else ''
 
-                    # 한글명 유효성 검사 (?, nan, 공백, 숫자만 있는 경우 제거)
-                    if (not name_kr or
-                        name_kr == 'nan' or
-                        name_kr == '' or
-                        name_kr == '?' or
-                        '?' in name_kr or
-                        all(c in ' ?' for c in name_kr) or
-                        name_kr.isdigit()):  # 숫자만 있는 경우 제외
+                    # 한글명 유효성 검사
+                    if (not name_kr_raw or
+                        name_kr_raw == 'nan' or
+                        name_kr_raw == '' or
+                        name_kr_raw == '?' or
+                        '?' in name_kr_raw or
+                        all(c in ' ?' for c in name_kr_raw) or
+                        name_kr_raw.isdigit()):
                         name_kr = None
+                    else:
+                        name_kr = name_kr_raw
 
                     # ========================================
-                    # STEP 6: 영문 종목명 추출 및 정제
+                    # STEP 5: 영문 종목명 추출 및 정제 (Index 7)
                     # ========================================
-                    name_en_raw = line_cleaned[offsets['name_en'][0]:offsets['name_en'][1]]
-                    name_en = name_en_raw.replace('\t', '').strip()  # 탭 제거 + 공백 제거
+                    name_en_raw = fields[7].strip() if len(fields) > 7 else ''
 
-                    # 영문명 유효성 검사 (숫자만 있는 경우 제외)
-                    if (not name_en or
-                        name_en == 'nan' or
-                        name_en == '' or
-                        name_en.isdigit()):  # 숫자만 있는 경우 제외
+                    # 영문명 유효성 검사
+                    if (not name_en_raw or
+                        name_en_raw == 'nan' or
+                        name_en_raw == '' or
+                        name_en_raw.isdigit()):
                         name_en = None
+                    else:
+                        name_en = name_en_raw
 
                     # ========================================
-                    # STEP 7: 종목명 최종 검증
+                    # STEP 6: 종목명 최종 검증
                     # ========================================
                     # 한글명과 영문명 둘 다 없으면 스킵
                     if not name_kr and not name_en:
@@ -438,23 +428,20 @@ class KisMasterService:
                         )
                         continue
 
-                    # name_kr이 없으면 name_en을 사용 (검색 가능하도록)
+                    # name_kr이 없으면 name_en을 복사
                     if not name_kr and name_en:
                         name_kr = name_en
 
                     # ========================================
-                    # STEP 8: 기타 필드 추출 (거래소, 국가 코드)
+                    # STEP 7: 기타 필드 추출 (있으면 사용)
                     # ========================================
-                    # 거래소 구분 코드 추출 (92-95 바이트)
-                    exchange_code_raw = line_cleaned[offsets['exchange_code'][0]:offsets['exchange_code'][1]]
-                    exchange_code = exchange_code_raw.replace('\t', '').strip()
-
-                    # 국가 코드 추출 (89-92 바이트)
-                    country_code_raw = line_cleaned[offsets['country_code'][0]:offsets['country_code'][1]]
-                    country_code = country_code_raw.replace('\t', '').strip()
+                    # 거래소 구분 코드 (있을 수도, 없을 수도)
+                    exchange_code = fields[2].strip() if len(fields) > 2 else ''
+                    # 국가 코드
+                    country_code = fields[1].strip() if len(fields) > 1 else ''
 
                     # ========================================
-                    # STEP 9: 상세 정보 구성 및 저장
+                    # STEP 8: 상세 정보 구성 및 저장
                     # ========================================
                     detail = {
                         "name": name_kr if name_kr else name_en,
@@ -479,14 +466,14 @@ class KisMasterService:
 
                     # 디버깅: 처음 5개 종목 로그
                     if count <= 5:
-                        logger.debug(
+                        logger.info(
                             f"[KisMasterService] 파싱 성공 #{count}: ticker={ticker}, "
                             f"name_kr={name_kr}, name_en={name_en}, exchange={exchange}"
                         )
 
                 except IndexError as e:
                     logger.warning(
-                        f"[KisMasterService] 라인 {line_num} 오프셋 초과 (길이: {len(raw_line)}): {e}"
+                        f"[KisMasterService] 라인 {line_num} 인덱스 오류 (필드 수: {len(fields) if 'fields' in locals() else 0}): {e}"
                     )
                     invalid_count += 1
                     continue
@@ -497,7 +484,7 @@ class KisMasterService:
 
             logger.info(
                 f"[KisMasterService] {exchange} 마스터 파일 파싱 완료: "
-                f"{count}개 종목 (중복: {duplicate_count}, 무효: {invalid_count}, 탭 오류: {tab_error_count})"
+                f"{count}개 종목 (중복: {duplicate_count}, 무효: {invalid_count})"
             )
             return count
 
