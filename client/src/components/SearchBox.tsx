@@ -117,6 +117,12 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
     // Store selected asset
     setSelectedAsset(asset)
 
+    // Determine if this is a Korean stock
+    const isKoreanStock = asset.country === 'KR' || asset.name_kr !== null
+
+    // For Korean stocks, use name_kr for analysis; otherwise use ticker
+    const searchQuery = isKoreanStock && asset.name_kr ? asset.name_kr : asset.ticker
+
     // Notify parent with ticker (for internal use)
     onTickerChange(asset.ticker)
 
@@ -124,10 +130,10 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
     setShowAutocomplete(false)
     setSearchResults([])
 
-    // Trigger analysis immediately with the selected ticker
-    // Pass ticker directly to avoid React state update delay
+    // Trigger analysis immediately with the selected query (name_kr for Korean stocks, ticker for others)
+    // Pass query directly to avoid React state update delay
     setTimeout(() => {
-      onSearch(asset.ticker)
+      onSearch(searchQuery)
     }, 100)
   }
 
@@ -193,7 +199,7 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
           onBlur={handleBlur}
           disabled={loading}
         />
-        <button onClick={onSearch} disabled={loading}>
+        <button onClick={() => onSearch()} disabled={loading}>
           {loading ? '분석 중...' : '분석하기'}
         </button>
       </div>
