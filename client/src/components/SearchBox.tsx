@@ -33,10 +33,11 @@ const highlightMatch = (text: string, query: string): React.ReactNode => {
           <mark
             key={index}
             style={{
-              backgroundColor: '#fef08a',
-              fontWeight: 600,
-              padding: '0 2px',
-              borderRadius: '2px',
+              backgroundColor: 'rgba(79, 70, 229, 0.1)',
+              color: '#4f46e5',
+              fontWeight: 700,
+              padding: '0 4px',
+              borderRadius: '4px',
             }}
           >
             {part}
