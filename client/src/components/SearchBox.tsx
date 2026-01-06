@@ -165,11 +165,10 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
     // Add to recent searches
     addRecentSearch(asset)
 
-    // Determine if this is a Korean stock
-    const isKoreanStock = asset.country === 'KR' || asset.name_kr !== null
-
-    // For Korean stocks, use name_kr for analysis; otherwise use ticker
-    const searchQuery = isKoreanStock && asset.name_kr ? asset.name_kr : asset.ticker
+    // CRITICAL: Always use ticker for analysis requests
+    // The ticker is the universal identifier for all stocks (KR, US, ETF, etc.)
+    // Display shows name_kr/name_en for UX, but backend always receives ticker
+    const searchQuery = asset.ticker
 
     // Notify parent with ticker (for internal use)
     onTickerChange(asset.ticker)
@@ -179,8 +178,8 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
     setSearchResults([])
     setIsFocused(false)
 
-    // Trigger analysis immediately with the selected query (name_kr for Korean stocks, ticker for others)
-    // Pass query directly to avoid React state update delay
+    // Trigger analysis immediately with ticker
+    // Pass ticker directly to avoid React state update delay
     setTimeout(() => {
       onSearch(searchQuery)
     }, 100)

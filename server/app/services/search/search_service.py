@@ -112,10 +112,12 @@ class AssetSearchService:
                     "match_type": match_type
                 })
 
-            # 우선순위 정렬: match_type (낮을수록 우선) > name_kr > ticker
+            # 우선순위 정렬: match_type (낮을수록 우선) > asset_type_priority > name_kr > ticker
+            # asset_type_priority: STOCK_US/STOCK_KR (0) > ETF (1)
             results_with_priority.sort(
                 key=lambda x: (
                     x["match_type"],
+                    self._get_asset_type_priority(x["result"].asset_type),
                     x["result"].name_kr if x["result"].name_kr else "",
                     x["result"].ticker
                 )
@@ -385,6 +387,28 @@ class AssetSearchService:
 
         # 기본값
         return MatchType.TOKEN
+
+    def _get_asset_type_priority(self, asset_type: AssetType) -> int:
+        """
+        자산 유형별 우선순위를 반환합니다.
+
+        검색 결과 정렬 시 본주(개별 주식)가 ETF보다 먼저 표시되도록 합니다.
+        예: '엔비디아' 검색 시 NVDA(미국 주식)가 483320.KS(엔비디아 ETF)보다 우선
+
+        Args:
+            asset_type: AssetType Enum
+
+        Returns:
+            우선순위 값 (낮을수록 우선)
+            - 0: STOCK_US, STOCK_KR (개별 주식)
+            - 1: ETF (상장지수펀드)
+        """
+        if asset_type in (AssetType.STOCK_US, AssetType.STOCK_KR):
+            return 0  # 개별 주식 우선
+        elif asset_type == AssetType.ETF:
+            return 1  # ETF는 후순위
+        else:
+            return 2  # 기타 (미래 확장 대비)
 
     def _get_country_from_asset_type(self, asset_type: AssetType) -> str:
         """

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from typing import Dict, List
+import re
 from app.schemas.stock import (
     StockInfo,
     StockAnalysisRequest,
@@ -18,6 +19,37 @@ import logging
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# Ticker validation pattern
+# - Accepts: A-Z, 0-9, and optional market suffix (.KS, .KQ, etc.)
+# - Examples: AAPL, NVDA, 005930.KS, 483320.KS
+TICKER_PATTERN = re.compile(r'^[A-Z0-9]+(\.[A-Z]+)?$')
+
+
+def validate_ticker_format(ticker: str) -> bool:
+    """
+    티커 형식을 검증합니다.
+
+    유효한 티커 형식:
+    - 영문 대문자로 시작
+    - 숫자 포함 가능 (한국 주식 코드)
+    - 선택적으로 시장 접미사 (.KS, .KQ, .NYSE 등)
+
+    Args:
+        ticker: 검증할 티커 문자열
+
+    Returns:
+        True if valid, False otherwise
+
+    Examples:
+        >>> validate_ticker_format("AAPL")
+        True
+        >>> validate_ticker_format("005930.KS")
+        True
+        >>> validate_ticker_format("삼성전자")
+        False
+    """
+    return bool(TICKER_PATTERN.match(ticker))
 
 
 @router.post("/search", response_model=TickerSearchResponse)
@@ -113,6 +145,15 @@ async def analyze_stock(
         from app.models.stock import StockAnalysisLog
 
         ticker = request.ticker.upper()
+
+        # Validate ticker format
+        if not validate_ticker_format(ticker):
+            logger.warning(f"[Stocks Router] Invalid ticker format: '{request.ticker}'")
+            raise HTTPException(
+                status_code=400,
+                detail=f"잘못된 티커 형식입니다: '{request.ticker}'. "
+                       f"티커는 영문 대문자와 숫자로 구성되어야 합니다 (예: AAPL, 005930.KS)."
+            )
 
         # 1. 캐시 확인 (AI 분석 포함)
         cache_valid_until = datetime.utcnow() - timedelta(hours=1)
