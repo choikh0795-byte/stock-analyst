@@ -10,7 +10,7 @@ interface UseStockAnalysisReturn {
   stockData: StockInfo | null
   aiAnalysis: AIAnalysis | null
   error: string | null
-  analyzeStock: () => Promise<void>
+  analyzeStock: (overrideTicker?: string) => Promise<void>
   reset: () => void
 }
 
@@ -37,8 +37,11 @@ export const useStockAnalysis = (): UseStockAnalysisReturn => {
     reset,
   } = useStockStore()
 
-  const analyzeStock = useCallback(async () => {
-    if (!ticker.trim()) {
+  const analyzeStock = useCallback(async (overrideTicker?: string) => {
+    // Use overrideTicker if provided (from autocomplete selection), otherwise use state ticker
+    const tickerToUse = overrideTicker || ticker
+
+    if (!tickerToUse.trim()) {
       setError('티커를 입력해주세요.')
       return
     }
@@ -50,7 +53,7 @@ export const useStockAnalysis = (): UseStockAnalysisReturn => {
     setStockData(null)
     setAiAnalysis(null)
 
-    const originalQuery = ticker.trim()
+    const originalQuery = tickerToUse.trim()
     setOriginalQuery(originalQuery)
     setResolvedTicker(null)
 

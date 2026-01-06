@@ -7,7 +7,7 @@ import './SearchBox.css'
 interface SearchBoxProps {
   ticker: string
   onTickerChange: (ticker: string) => void
-  onSearch: () => void
+  onSearch: (ticker?: string) => void
   loading: boolean
 }
 
@@ -30,9 +30,13 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
   const searchBoxRef = useRef<HTMLDivElement>(null)
 
   // Sync displayValue with ticker prop (for external updates)
+  // BUT: Don't override displayValue if user has selected an asset from autocomplete
   useEffect(() => {
-    setDisplayValue(ticker)
-  }, [ticker])
+    // Only sync if no asset is selected (i.e., user is manually typing)
+    if (!selectedAsset) {
+      setDisplayValue(ticker)
+    }
+  }, [ticker, selectedAsset])
 
   // Debounced search effect - use displayValue for autocomplete
   useEffect(() => {
@@ -120,9 +124,10 @@ export const SearchBox: React.FC<SearchBoxProps> = ({
     setShowAutocomplete(false)
     setSearchResults([])
 
-    // Trigger analysis immediately
+    // Trigger analysis immediately with the selected ticker
+    // Pass ticker directly to avoid React state update delay
     setTimeout(() => {
-      onSearch()
+      onSearch(asset.ticker)
     }, 100)
   }
 
