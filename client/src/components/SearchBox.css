@@ -59,6 +59,16 @@
   cursor: not-allowed;
 }
 
+/* Hide scrollbar for recent searches - cross-browser */
+.recent-searches-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.recent-searches-scroll {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
 @media (max-width: 768px) {
   .search-box {
     flex-direction: column;
