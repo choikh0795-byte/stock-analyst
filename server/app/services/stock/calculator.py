@@ -312,60 +312,96 @@ class StockCalculator:
 
     def calculate_debt_ratio(self, info: Dict) -> Optional[float]:
         """
-        부채비율 계산
+        부채비율(Debt Ratio) 계산 = Total Debt / Total Assets * 100
+
+        ⚠️ 주의: debtToEquity는 부채/자본 비율이므로 부채/자산 비율과 다릅니다!
 
         우선순위:
-        1. Yahoo Finance 제공 debtToEquity 사용
-        2. 없을 경우에만 직접 계산
+        1. totalDebt와 totalAssets 직접 계산
+        2. totalAssets가 없으면 ROA 역산으로 계산 (Total Assets = Net Income / ROA)
+        3. 그것도 없으면 debtToEquity를 이용한 공식 사용
+           Debt Ratio = debtToEquity / (1 + debtToEquity) * 100
         """
-        logger.info(f"[Calculation] 부채비율 계산 시작: {info}")
-
-        # 1️⃣ Yahoo 제공 값 우선 사용
-        debt_to_equity = info.get("debtToEquity")
-        try:
-            if debt_to_equity is not None:
-                debt_to_equity = float(debt_to_equity)
-                if debt_to_equity >= 0:
-                    logger.info(
-                        f"[Calculation] 부채비율(Yahoo 제공) 사용: {debt_to_equity}%"
-                    )
-                    return round(debt_to_equity, 2)
-        except (TypeError, ValueError):
-            pass  # fallback
-
-        # 2️⃣ fallback 계산
-        logger.info("[Calculation] 부채비율 직접 계산 시도")
+        logger.info("[Calculation] 부채비율 계산 시작")
 
         total_debt = info.get("totalDebt")
-        total_equity = info.get("totalStockholderEquity") or info.get("totalEquity")
 
-        if not total_equity or total_equity <= 0:
-            total_assets = info.get("totalAssets")
-            total_liabilities = info.get("totalLiabilities")
-            if total_assets is not None and total_liabilities is not None:
-                total_equity = total_assets - total_liabilities
-
+        # totalDebt가 없으면 totalLiabilities 사용
         if not total_debt or total_debt <= 0:
             total_debt = info.get("totalLiabilities")
 
-        if (
-            total_debt is None
-            or total_equity is None
-            or total_debt <= 0
-            or total_equity <= 0
-        ):
-            logger.warning(
-                f"[Calculation] 부채비율 계산 불가: 총부채={total_debt}, 총자본={total_equity}"
-            )
+        if not total_debt or total_debt <= 0:
+            logger.warning("[Calculation] 부채비율 계산 불가: totalDebt가 없거나 0 이하")
             return None
 
-        try:
-            debt_ratio = (float(total_debt) / float(total_equity)) * 100
-            logger.info(f"[Calculation] 부채비율 계산 성공: {debt_ratio:.2f}%")
-            return round(debt_ratio, 2)
-        except (ValueError, TypeError, ZeroDivisionError) as e:
-            logger.warning(f"[Calculation] 부채비율 계산 실패: {e}")
-            return None
+        # 1️⃣ totalAssets 직접 사용
+        total_assets = info.get("totalAssets")
+        if total_assets is not None and total_assets > 0:
+            try:
+                debt_ratio = (float(total_debt) / float(total_assets)) * 100
+                logger.info(
+                    f"[Calculation] 부채비율 1차 계산 성공 (totalDebt/totalAssets): "
+                    f"{debt_ratio:.2f}% (부채={total_debt:,}, 자산={total_assets:,})"
+                )
+                return round(debt_ratio, 2)
+            except (ValueError, TypeError, ZeroDivisionError) as e:
+                logger.warning(f"[Calculation] 부채비율 1차 계산 실패: {e}")
+
+        # 2️⃣ ROA 역산으로 totalAssets 계산 (Total Assets = Net Income / ROA)
+        return_on_assets = info.get("returnOnAssets")
+        net_income = info.get("netIncomeToCommon")
+
+        if return_on_assets is not None and return_on_assets > 0 and net_income is not None:
+            try:
+                roa_float = float(return_on_assets)
+                net_income_float = float(net_income)
+
+                # ROA = Net Income / Total Assets
+                # Total Assets = Net Income / ROA
+                total_assets_calculated = net_income_float / roa_float
+                debt_ratio = (float(total_debt) / total_assets_calculated) * 100
+
+                logger.info(
+                    f"[Calculation] 부채비율 2차 계산 성공 (ROA 역산): "
+                    f"{debt_ratio:.2f}% (부채={total_debt:,}, 자산={total_assets_calculated:,.0f}, "
+                    f"순이익={net_income_float:,}, ROA={roa_float:.4f})"
+                )
+                return round(debt_ratio, 2)
+            except (ValueError, TypeError, ZeroDivisionError) as e:
+                logger.warning(f"[Calculation] 부채비율 2차 계산 실패: {e}")
+
+        # 3️⃣ debtToEquity를 이용한 공식 사용
+        # Debt/Equity = D/E
+        # Assets = Debt + Equity
+        # Debt Ratio = Debt / Assets = Debt / (Debt + Equity) = D / (D + E)
+        # D = E * (D/E) 이므로
+        # Debt Ratio = E * (D/E) / (E * (D/E) + E) = (D/E) / ((D/E) + 1)
+        debt_to_equity = info.get("debtToEquity")
+        if debt_to_equity is not None:
+            try:
+                debt_to_equity_float = float(debt_to_equity)
+                if debt_to_equity_float >= 0:
+                    # debtToEquity는 이미 % 단위일 수 있으므로 확인 필요
+                    # 일반적으로 17.082는 1708.2%를 의미하므로 100으로 나눔
+                    # 하지만 Yahoo Finance는 소수로 주기도 하므로 값의 범위로 판단
+
+                    # debtToEquity가 100 이상이면 이미 % 단위
+                    if debt_to_equity_float >= 100:
+                        debt_to_equity_ratio = debt_to_equity_float / 100
+                    else:
+                        debt_to_equity_ratio = debt_to_equity_float
+
+                    debt_ratio = (debt_to_equity_ratio / (1 + debt_to_equity_ratio)) * 100
+                    logger.info(
+                        f"[Calculation] 부채비율 3차 계산 성공 (debtToEquity 공식): "
+                        f"{debt_ratio:.2f}% (debtToEquity={debt_to_equity_float})"
+                    )
+                    return round(debt_ratio, 2)
+            except (ValueError, TypeError, ZeroDivisionError) as e:
+                logger.warning(f"[Calculation] 부채비율 3차 계산 실패: {e}")
+
+        logger.warning("[Calculation] 부채비율 계산 불가: 모든 방법 실패")
+        return None
 
 
 

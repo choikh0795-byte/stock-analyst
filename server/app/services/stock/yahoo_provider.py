@@ -322,6 +322,60 @@ class YahooStockProvider(BaseStockProvider):
                     pass
             result["roe"] = roe_percent
 
+            # 부채비율 계산 (Debt Ratio = Total Debt / Total Assets * 100)
+            debt_ratio = None
+            total_debt = info.get("totalDebt")
+
+            # totalDebt가 없으면 totalLiabilities 사용
+            if not total_debt or total_debt <= 0:
+                total_debt = info.get("totalLiabilities")
+
+            if total_debt and total_debt > 0:
+                # 1순위: totalAssets 직접 사용
+                total_assets = info.get("totalAssets")
+                if total_assets is not None and total_assets > 0:
+                    try:
+                        debt_ratio = (float(total_debt) / float(total_assets)) * 100
+                        logger.info(f"[YahooStockProvider] 부채비율 1차 계산: {debt_ratio:.2f}% (부채={total_debt:,}, 자산={total_assets:,})")
+                    except (ValueError, TypeError, ZeroDivisionError):
+                        pass
+
+                # 2순위: ROA 역산
+                if debt_ratio is None:
+                    return_on_assets = info.get("returnOnAssets")
+                    net_income = info.get("netIncomeToCommon")
+
+                    if return_on_assets is not None and return_on_assets > 0 and net_income is not None:
+                        try:
+                            total_assets_calc = float(net_income) / float(return_on_assets)
+                            debt_ratio = (float(total_debt) / total_assets_calc) * 100
+                            logger.info(
+                                f"[YahooStockProvider] 부채비율 2차 계산 (ROA 역산): {debt_ratio:.2f}% "
+                                f"(부채={total_debt:,}, 자산={total_assets_calc:,.0f})"
+                            )
+                        except (ValueError, TypeError, ZeroDivisionError):
+                            pass
+
+                # 3순위: debtToEquity 공식 사용
+                if debt_ratio is None:
+                    debt_to_equity = info.get("debtToEquity")
+                    if debt_to_equity is not None:
+                        try:
+                            debt_to_equity_float = float(debt_to_equity)
+                            if debt_to_equity_float >= 0:
+                                # debtToEquity가 100 이상이면 이미 % 단위
+                                if debt_to_equity_float >= 100:
+                                    debt_to_equity_ratio = debt_to_equity_float / 100
+                                else:
+                                    debt_to_equity_ratio = debt_to_equity_float
+
+                                debt_ratio = (debt_to_equity_ratio / (1 + debt_to_equity_ratio)) * 100
+                                logger.info(f"[YahooStockProvider] 부채비율 3차 계산 (debtToEquity 공식): {debt_ratio:.2f}%")
+                        except (ValueError, TypeError, ZeroDivisionError):
+                            pass
+
+            result["debt_ratio"] = debt_ratio
+
             # 주식 전용 지표
             result["pe_ratio"] = info.get("trailingPE") or info.get("forwardPE")
             result["pb_ratio"] = info.get("priceToBook")
@@ -372,14 +426,58 @@ class YahooStockProvider(BaseStockProvider):
                 except (ValueError, TypeError):
                     pass
 
-            # ✅ 부채비율 직접 추출 (Yahoo가 이미 계산한 값, 이미 % 단위)
-            debt_ratio = info.get("debtToEquity")
-            if debt_ratio is not None:
-                try:
-                    debt_ratio = float(debt_ratio)
-                    logger.info(f"[YahooStockProvider] 부채비율 추출: {debt_ratio:.2f}%")
-                except (ValueError, TypeError):
-                    debt_ratio = None
+            # ✅ 부채비율 계산 (debtToEquity가 아닌 Debt/Assets 비율 계산)
+            # ⚠️ 주의: debtToEquity는 부채/자본 비율이므로 부채/자산 비율과 다릅니다!
+            debt_ratio = None
+            total_debt = info.get("totalDebt")
+
+            # totalDebt가 없으면 totalLiabilities 사용
+            if not total_debt or total_debt <= 0:
+                total_debt = info.get("totalLiabilities")
+
+            if total_debt and total_debt > 0:
+                # 1순위: totalAssets 직접 사용
+                total_assets = info.get("totalAssets")
+                if total_assets is not None and total_assets > 0:
+                    try:
+                        debt_ratio = (float(total_debt) / float(total_assets)) * 100
+                        logger.info(f"[YahooStockProvider] 부채비율 1차 계산: {debt_ratio:.2f}% (부채={total_debt:,}, 자산={total_assets:,})")
+                    except (ValueError, TypeError, ZeroDivisionError):
+                        pass
+
+                # 2순위: ROA 역산
+                if debt_ratio is None:
+                    return_on_assets = info.get("returnOnAssets")
+                    net_income = info.get("netIncomeToCommon")
+
+                    if return_on_assets is not None and return_on_assets > 0 and net_income is not None:
+                        try:
+                            total_assets_calc = float(net_income) / float(return_on_assets)
+                            debt_ratio = (float(total_debt) / total_assets_calc) * 100
+                            logger.info(
+                                f"[YahooStockProvider] 부채비율 2차 계산 (ROA 역산): {debt_ratio:.2f}% "
+                                f"(부채={total_debt:,}, 자산={total_assets_calc:,.0f})"
+                            )
+                        except (ValueError, TypeError, ZeroDivisionError):
+                            pass
+
+                # 3순위: debtToEquity 공식 사용
+                if debt_ratio is None:
+                    debt_to_equity = info.get("debtToEquity")
+                    if debt_to_equity is not None:
+                        try:
+                            debt_to_equity_float = float(debt_to_equity)
+                            if debt_to_equity_float >= 0:
+                                # debtToEquity가 100 이상이면 이미 % 단위
+                                if debt_to_equity_float >= 100:
+                                    debt_to_equity_ratio = debt_to_equity_float / 100
+                                else:
+                                    debt_to_equity_ratio = debt_to_equity_float
+
+                                debt_ratio = (debt_to_equity_ratio / (1 + debt_to_equity_ratio)) * 100
+                                logger.info(f"[YahooStockProvider] 부채비율 3차 계산 (debtToEquity 공식): {debt_ratio:.2f}%")
+                        except (ValueError, TypeError, ZeroDivisionError):
+                            pass
 
             # ✅ 목표가 직접 추출
             target_mean_price = info.get("targetMeanPrice")
@@ -388,7 +486,7 @@ class YahooStockProvider(BaseStockProvider):
 
             return {
                 "roe": roe_percent,  # % 단위 (예: 14.09)
-                "debt_ratio": debt_ratio,  # % 단위 (예: 4.57)
+                "debt_ratio": debt_ratio,  # % 단위 (예: 6.38)
                 "target_mean_price": target_mean_price,  # 원화 또는 달러 (예: 146689.66)
             }
 
