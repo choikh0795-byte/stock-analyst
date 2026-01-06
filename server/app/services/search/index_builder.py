@@ -132,21 +132,47 @@ class AssetSearchIndexBuilder:
         """
         검색 토큰을 생성합니다.
 
+        우선순위:
+        1. 한글 이름 접두사 (한국 주식)
+        2. 영문 이름 접두사 (미국 주식)
+        3. 티커 접두사 (모든 주식)
+
         Args:
             name_kr: 한글 이름
             name_en: 영문 이름
             ticker: 티커 코드
 
         Returns:
-            중복 제거된 검색 토큰 리스트 (토큰이 없으면 None)
+            중복 제거된 검색 토큰 리스트 (우선순위 순서) (토큰이 없으면 None)
         """
-        tokens = set()
+        # 우선순위 보장을 위해 리스트 사용 (set 대신)
+        tokens_ordered = []
 
-        tokens.update(build_prefix_tokens(name_kr))
-        tokens.update(build_prefix_tokens(name_en))
-        tokens.update(build_prefix_tokens(ticker))
+        # 1. 한글 이름 토큰 (한국 주식 우선순위)
+        if name_kr and name_kr.strip():
+            kr_tokens = build_prefix_tokens(name_kr)
+            tokens_ordered.extend(kr_tokens)
 
-        return list(tokens) if tokens else None
+        # 2. 영문 이름 토큰 (미국 주식 우선순위)
+        # name_kr과 동일한 경우 중복 방지
+        if name_en and name_en.strip() and name_en != name_kr:
+            en_tokens = build_prefix_tokens(name_en)
+            tokens_ordered.extend(en_tokens)
+
+        # 3. 티커 토큰 (모든 주식)
+        if ticker and ticker.strip():
+            ticker_tokens = build_prefix_tokens(ticker)
+            tokens_ordered.extend(ticker_tokens)
+
+        # 중복 제거 (순서 유지)
+        seen = set()
+        unique_tokens = []
+        for token in tokens_ordered:
+            if token and token not in seen:
+                seen.add(token)
+                unique_tokens.append(token)
+
+        return unique_tokens if unique_tokens else None
 
     def _bulk_upsert(self, batch_data: list[dict]) -> int:
         """
