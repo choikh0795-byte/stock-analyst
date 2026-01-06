@@ -68,7 +68,7 @@ class KisMasterService:
         1, 1, 1, 9, 9,  # 영업이익, 경상이익, 당기순이익, ROE, 기준년월
         9, 9, 9, 5, 9,  # 시가총액, 그룹사코드, 회사신용한도초과, 담보대출가능, 대주가능
     ]
-    
+
     PART2_COLUMNS_KOSPI = [
         '그룹코드', '시가총액규모', '지수업종대분류', '지수업종중분류', '지수업종소분류',
         '제조업', '저유동성', '지배구조지수종목', 'KOSPI200섹터업종', 'KOSPI100',
@@ -85,7 +85,7 @@ class KisMasterService:
         '영업이익', '경상이익', '당기순이익', 'ROE', '기준년월',
         '시가총액', '그룹사코드', '회사신용한도초과', '담보대출가능', '대주가능'
     ]
-    
+
     # Part2 필드 구조 (고정 폭) - 코스닥
     # 샘플 코드의 field_specs에 맞춘 구조
     PART2_FIELD_SPECS_KOSDAQ = [
@@ -104,7 +104,7 @@ class KisMasterService:
         5, 9, 8, 9, 3,  # 단기순이익, ROE(자기자본이익률), 기준년월, 전일기준 시가총액 (억), 그룹사 코드
         1, 1, 1, 1, 1  # 회사신용한도초과여부, 담보대출가능여부, 대주가능여부
     ]
-    
+
     PART2_COLUMNS_KOSDAQ = [
         '증권그룹구분코드', '시가총액 규모 구분 코드 유가',
         '지수업종 대분류 코드', '지수 업종 중분류 코드', '지수업종 소분류 코드', '벤처기업 여부 (Y/N)',
@@ -145,6 +145,9 @@ class KisMasterService:
         '통화단위',
     ]
 
+    # 한글 초성 리스트
+    CHOSUNG_LIST = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ']
+
     def __init__(self, cache_dir: Optional[str] = None, enable_naver_fallback: bool = True):
         """
         KisMasterService 초기화
@@ -180,47 +183,74 @@ class KisMasterService:
             except Exception as e:
                 logger.warning(f"[KisMasterService] 네이버 검색 API 초기화 실패: {e}")
 
+    @staticmethod
+    def _get_korean_initials(text: str) -> Optional[str]:
+        """
+        한글 텍스트에서 초성을 추출합니다.
+
+        Args:
+            text: 한글 텍스트
+
+        Returns:
+            Optional[str]: 초성 문자열 또는 None
+        """
+        if not text:
+            return None
+
+        result = []
+        for char in text:
+            # 한글인지 확인 (유니코드 범위: 0xAC00 ~ 0xD7A3)
+            if 0xAC00 <= ord(char) <= 0xD7A3:
+                # 초성 추출 공식: (유니코드 값 - 0xAC00) // (21 * 28)
+                chosung_index = (ord(char) - 0xAC00) // (21 * 28)
+                result.append(KisMasterService.CHOSUNG_LIST[chosung_index])
+            else:
+                # 한글이 아니면 그대로 추가 (영문, 숫자 등)
+                result.append(char)
+
+        return ''.join(result) if result else None
+
     def _download_and_extract_master_file(self, urls: List[str], zip_filename: str, extracted_filename: str) -> Optional[Path]:
         """
         마스터 파일을 다운로드하고 압축을 해제합니다.
-        
+
         Args:
             urls: 다운로드 시도할 URL 리스트
             zip_filename: 다운로드할 압축 파일명
             extracted_filename: 압축 해제 후 파일명
-            
+
         Returns:
             Path: 압축 해제된 파일 경로 또는 None (실패 시)
         """
         extracted_file_path = self.cache_dir / extracted_filename
-        
+
         # 이미 압축 해제된 파일이 있으면 재사용
         if extracted_file_path.exists():
             logger.info(f"[KisMasterService] 기존 마스터 파일 사용: {extracted_file_path}")
             return extracted_file_path
-        
+
         zip_file_path = self.cache_dir / zip_filename
-        
+
         # 압축 파일이 없으면 다운로드
         if not zip_file_path.exists():
             # SSL 컨텍스트 설정 (인증서 검증 비활성화)
             ssl._create_default_https_context = ssl._create_unverified_context
-            
+
             # 여러 URL 시도
             for url in urls:
                 try:
                     logger.info(f"[KisMasterService] 마스터 파일 다운로드 시도: {url}")
                     urllib.request.urlretrieve(url, str(zip_file_path))
-                    
+
                     # 파일 크기 체크 (최소 1KB 이상이어야 함)
                     if zip_file_path.stat().st_size < 1024:
                         logger.warning(f"[KisMasterService] 다운로드된 파일이 너무 작음: {zip_file_path.stat().st_size} bytes")
                         zip_file_path.unlink(missing_ok=True)
                         continue
-                    
+
                     logger.info(f"[KisMasterService] 마스터 파일 다운로드 성공: {zip_file_path} ({zip_file_path.stat().st_size} bytes)")
                     break
-                    
+
                 except Exception as e:
                     logger.warning(f"[KisMasterService] URL 다운로드 실패 ({url}): {e}")
                     zip_file_path.unlink(missing_ok=True)
@@ -229,20 +259,20 @@ class KisMasterService:
                 # 모든 URL 실패
                 logger.error(f"[KisMasterService] 모든 URL에서 마스터 파일 다운로드 실패: {zip_filename}")
                 return None
-        
+
         # 압축 해제
         try:
             logger.info(f"[KisMasterService] 압축 파일 해제 중: {zip_file_path}")
             with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
                 zip_ref.extractall(self.cache_dir)
-            
+
             # 압축 파일 삭제 (선택사항)
             if zip_file_path.exists():
                 zip_file_path.unlink()
-            
+
             logger.info(f"[KisMasterService] 압축 해제 완료: {extracted_file_path}")
             return extracted_file_path
-            
+
         except zipfile.BadZipFile:
             logger.error(f"[KisMasterService] 잘못된 압축 파일: {zip_file_path}")
             zip_file_path.unlink(missing_ok=True)
@@ -269,21 +299,37 @@ class KisMasterService:
         try:
             logger.info(f"[KisMasterService] {exchange} 마스터 파일 파싱 시작: {file_path}")
 
-            # 고정 폭 파일 파싱
-            df = pd.read_fwf(
-                file_path,
-                widths=self.US_FIELD_SPECS,
-                names=self.US_COLUMNS,
-                encoding='cp949'
-            )
+            # 고정 폭 파일 파싱 (인코딩 에러 처리)
+            try:
+                df = pd.read_fwf(
+                    file_path,
+                    widths=self.US_FIELD_SPECS,
+                    names=self.US_COLUMNS,
+                    encoding='cp949',
+                    encoding_errors='replace'  # 인코딩 에러 시 '?' 문자로 대체
+                )
+            except UnicodeDecodeError as e:
+                logger.error(f"[KisMasterService] 인코딩 에러 발생: {e}")
+                # 대체 인코딩 시도 (euc-kr)
+                try:
+                    df = pd.read_fwf(
+                        file_path,
+                        widths=self.US_FIELD_SPECS,
+                        names=self.US_COLUMNS,
+                        encoding='euc-kr',
+                        encoding_errors='replace'
+                    )
+                except Exception as e2:
+                    logger.error(f"[KisMasterService] 대체 인코딩도 실패: {e2}")
+                    return 0
 
             # 데이터프레임을 순회하며 메모리 캐시에 저장
             count = 0
-            for _, row in df.iterrows():
+            for idx, row in df.iterrows():
                 try:
                     # 심볼 추출 (공백 제거)
                     symbol = str(row['심볼']).strip()
-                    if not symbol or symbol == 'nan':
+                    if not symbol or symbol == 'nan' or len(symbol) == 0:
                         continue
 
                     # 티커 생성 (심볼만 사용, 거래소 suffix는 추가하지 않음)
@@ -291,13 +337,21 @@ class KisMasterService:
 
                     # 한글 종목명
                     name_kr = str(row['한글종목명']).strip()
-                    if name_kr == 'nan':
+                    if name_kr == 'nan' or name_kr == '' or name_kr == '?' or '?' in name_kr:
                         name_kr = None
 
                     # 영문 종목명
                     name_en = str(row['현지종목명']).strip()
-                    if not name_en or name_en == 'nan':
+                    if name_en == 'nan' or name_en == '':
+                        name_en = None
+
+                    # 한글명과 영문명 둘 다 없으면 스킵 (필터링 완화)
+                    if not name_kr and not name_en:
                         continue
+
+                    # name_kr이 없으면 name_en을 복사 (검색 가능하도록)
+                    if not name_kr and name_en:
+                        name_kr = name_en
 
                     # 거래소 구분 코드 확인
                     exchange_code = str(row.get('거래소구분', '')).strip()
@@ -305,7 +359,7 @@ class KisMasterService:
                     # 상세 정보 구성
                     detail = {
                         "name": name_kr if name_kr else name_en,
-                        "name_kr": name_kr,
+                        "name_kr": name_kr,  # 명시적으로 name_kr 추가
                         "name_en": name_en,
                         "market": exchange,
                         "exchange": exchange,
@@ -314,10 +368,10 @@ class KisMasterService:
                         "country_code": str(row.get('국가코드', '')).strip(),
                     }
 
-                    # 매핑 저장
+                    # 매핑 저장 (name_kr과 name_en 둘 다 등록)
                     if name_kr:
                         self._name_to_code[name_kr] = ticker
-                    if name_en:
+                    if name_en and name_en != name_kr:
                         self._name_to_code[name_en] = ticker
 
                     self._code_to_detail[ticker] = detail
@@ -325,34 +379,34 @@ class KisMasterService:
                     count += 1
 
                 except Exception as e:
-                    logger.warning(f"[KisMasterService] 행 파싱 중 오류: {e}")
+                    logger.warning(f"[KisMasterService] 행 파싱 중 오류 (row {idx}): {e}")
                     continue
 
             logger.info(f"[KisMasterService] {exchange} 마스터 파일 파싱 완료: {count}개 종목")
             return count
 
         except Exception as e:
-            logger.error(f"[KisMasterService] 마스터 파일 파싱 중 오류: {e}")
+            logger.error(f"[KisMasterService] 마스터 파일 파싱 중 오류: {e}", exc_info=True)
             return 0
 
     def _parse_master_file(self, file_path: Path, market: str) -> int:
         """
         마스터 파일을 파싱하여 메모리 캐시에 저장합니다.
         샘플 코드 방식을 사용하여 파일을 part1과 part2로 나누어 파싱합니다.
-        
+
         Args:
             file_path: 마스터 파일 경로
             market: 시장 구분 ("KOSPI" 또는 "KOSDAQ")
-            
+
         Returns:
             int: 파싱된 종목 수
         """
         if not file_path.exists():
             logger.error(f"[KisMasterService] 마스터 파일이 존재하지 않음: {file_path}")
             return 0
-        
+
         ticker_suffix = ".KS" if market == "KOSPI" else ".KQ"
-        
+
         # 시장에 따라 다른 필드 구조 사용
         if market == "KOSPI":
             part2_suffix = 228  # 코스피는 뒷부분 228자리
@@ -374,72 +428,78 @@ class KisMasterService:
             listing_date_col = '주식 상장 일자'
             roe_col = 'ROE(자기자본이익률)'
             sector_col = '지수업종 대분류 코드'
-        
+
         try:
             # 임시 파일 경로
             tmp_file1 = self.cache_dir / f"{market}_part1.tmp"
             tmp_file2 = self.cache_dir / f"{market}_part2.tmp"
-            
-            # 파일을 part1과 part2로 분리
+
+            # 파일을 part1과 part2로 분리 (인코딩 에러 처리)
             logger.info(f"[KisMasterService] {market} 마스터 파일 파싱 시작: {file_path}")
-            
-            with open(file_path, "r", encoding="cp949") as f:
-                wf1 = open(tmp_file1, "w", encoding="utf-8")
-                wf2 = open(tmp_file2, "w", encoding="utf-8")
-                
-                for row in f:
-                    # part1: 앞부분 (단축코드, 표준코드, 한글명)
-                    rf1 = row[0:len(row) - part2_suffix]
-                    rf1_1 = rf1[0:9].rstrip()
-                    rf1_2 = rf1[9:21].rstrip()
-                    rf1_3 = rf1[21:].strip()
-                    wf1.write(rf1_1 + ',' + rf1_2 + ',' + rf1_3 + '\n')
-                    
-                    # part2: 뒷부분 (나머지 필드들)
-                    rf2 = row[-part2_suffix:]
-                    wf2.write(rf2)
-                
-                wf1.close()
-                wf2.close()
-            
+
+            try:
+                with open(file_path, "r", encoding="cp949", errors='replace') as f:
+                    wf1 = open(tmp_file1, "w", encoding="utf-8")
+                    wf2 = open(tmp_file2, "w", encoding="utf-8")
+
+                    for row in f:
+                        # part1: 앞부분 (단축코드, 표준코드, 한글명)
+                        rf1 = row[0:len(row) - part2_suffix]
+                        rf1_1 = rf1[0:9].rstrip()
+                        rf1_2 = rf1[9:21].rstrip()
+                        rf1_3 = rf1[21:].strip()
+                        wf1.write(rf1_1 + ',' + rf1_2 + ',' + rf1_3 + '\n')
+
+                        # part2: 뒷부분 (나머지 필드들)
+                        rf2 = row[-part2_suffix:]
+                        wf2.write(rf2)
+
+                    wf1.close()
+                    wf2.close()
+            except UnicodeDecodeError as e:
+                logger.error(f"[KisMasterService] 파일 읽기 중 인코딩 에러: {e}")
+                return 0
+
             # Part1을 CSV로 읽기
             df1 = pd.read_csv(tmp_file1, header=None, names=part1_columns, encoding='utf-8')
-            
+
             # Part2를 고정 폭으로 읽기
             df2 = pd.read_fwf(tmp_file2, widths=field_specs, names=part2_columns, encoding='utf-8')
-            
+
             # 두 데이터프레임 병합
             df = pd.merge(df1, df2, how='outer', left_index=True, right_index=True)
-            
+
             # 임시 파일 삭제
             tmp_file1.unlink(missing_ok=True)
             tmp_file2.unlink(missing_ok=True)
-            
+
             # 데이터프레임을 순회하며 메모리 캐시에 저장
             count = 0
-            for _, row in df.iterrows():
+            for idx, row in df.iterrows():
                 try:
                     # 단축코드에서 종목코드 추출 (6자리)
                     short_code = str(row['단축코드']).strip()
                     if not short_code or len(short_code) < 6:
                         continue
-                    
+
                     stock_code = short_code[:6]
                     if not stock_code.isdigit():
                         continue
-                    
+
                     # 티커 생성
                     ticker = f"{stock_code}{ticker_suffix}"
-                    
+
                     # 종목명 추출 (코스피는 '한글명', 코스닥은 '한글종목명')
                     name_col = '한글명' if market == "KOSPI" else '한글종목명'
                     name = str(row[name_col]).strip()
                     if not name or name == 'nan':
                         continue
-                    
-                    # 상세 정보 구성
+
+                    # 상세 정보 구성 (name_kr 명시적 추가)
                     detail = {
                         "name": name,
+                        "name_kr": name,  # 명시적으로 name_kr 키 추가
+                        "name_en": None,  # 한국 주식은 영문명이 없음
                         "sector_code": str(row.get(sector_col, '')).strip(),
                         "market": market,
                         "stock_code": stock_code,
@@ -450,22 +510,22 @@ class KisMasterService:
                         "listing_date": str(row.get(listing_date_col, '')).strip(),
                         "roe": str(row.get(roe_col, '')).strip(),
                     }
-                    
+
                     # 매핑 저장
                     self._name_to_code[name] = ticker
                     self._code_to_detail[ticker] = detail
-                    
+
                     count += 1
-                    
+
                 except Exception as e:
-                    logger.warning(f"[KisMasterService] 행 파싱 중 오류: {e}")
+                    logger.warning(f"[KisMasterService] 행 파싱 중 오류 (row {idx}): {e}")
                     continue
-            
+
             logger.info(f"[KisMasterService] {market} 마스터 파일 파싱 완료: {count}개 종목")
             return count
-            
+
         except Exception as e:
-            logger.error(f"[KisMasterService] 마스터 파일 파싱 중 오류: {e}")
+            logger.error(f"[KisMasterService] 마스터 파일 파싱 중 오류: {e}", exc_info=True)
             return 0
 
     def load_master_data(self, force_reload: bool = False, include_us: bool = True) -> bool:
@@ -558,7 +618,7 @@ class KisMasterService:
                 return False
 
         except Exception as e:
-            logger.error(f"[KisMasterService] 마스터 데이터 로드 중 오류: {e}")
+            logger.error(f"[KisMasterService] 마스터 데이터 로드 중 오류: {e}", exc_info=True)
             return False
 
     def get_ticker_by_name(self, name: str) -> Optional[str]:
@@ -639,25 +699,25 @@ class KisMasterService:
     def get_detail_by_ticker(self, ticker: str) -> Optional[Dict]:
         """
         티커로 상세 정보를 가져옵니다.
-        
+
         Args:
             ticker: 티커 (예: "005930.KS")
-            
+
         Returns:
             Optional[Dict]: 상세 정보 딕셔너리 또는 None
         """
         if not self._loaded:
             return None
-        
+
         return self._code_to_detail.get(ticker.upper())
 
     def get_name_by_ticker(self, ticker: str) -> Optional[str]:
         """
         티커로 종목명을 가져옵니다.
-        
+
         Args:
             ticker: 티커 (예: "005930.KS")
-            
+
         Returns:
             Optional[str]: 종목명 또는 None
         """
@@ -699,7 +759,7 @@ class KisMasterService:
 
         Returns:
             List[Dict]: 종목 정보 리스트
-            각 dict는 ticker, name_kr, name_en, market, exchange 등을 포함
+            각 dict는 ticker, name_kr, name_en, initial_kr, market, exchange 등을 포함
         """
         if not self._loaded:
             logger.warning("[KisMasterService] 마스터 데이터가 로드되지 않음")
@@ -707,13 +767,35 @@ class KisMasterService:
 
         result = []
         for ticker, detail in self._code_to_detail.items():
-            result.append({
-                "ticker": ticker,
-                "name_kr": detail.get("name_kr"),
-                "name_en": detail.get("name_en"),
-                "market": detail.get("market"),
-                "exchange": detail.get("exchange", detail.get("market")),
-            })
+            try:
+                # name_kr과 name_en 추출 (None 방지)
+                name_kr = detail.get("name_kr")
+                name_en = detail.get("name_en")
+
+                # name_kr이 None이면 name_en 사용 (미국 주식 대비)
+                if not name_kr and name_en:
+                    name_kr = name_en
+
+                # 한글 초성 추출 (name_kr이 있는 경우에만)
+                initial_kr = None
+                if name_kr:
+                    initial_kr = self._get_korean_initials(name_kr)
+
+                # AssetSearchIndex 모델 컬럼명과 일치하도록 구성
+                stock_info = {
+                    "ticker": ticker,
+                    "name_kr": name_kr,
+                    "name_en": name_en,
+                    "initial_kr": initial_kr,
+                    "market": detail.get("market"),
+                    "exchange": detail.get("exchange", detail.get("market")),
+                }
+
+                result.append(stock_info)
+
+            except Exception as e:
+                logger.warning(f"[KisMasterService] 종목 정보 생성 중 오류 (ticker: {ticker}): {e}")
+                continue
 
         logger.info(f"[KisMasterService] 전체 종목 정보 반환: {len(result)}개")
         return result
