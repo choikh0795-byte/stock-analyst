@@ -4,12 +4,16 @@
 
 from dataclasses import dataclass
 from typing import Optional
+import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
 
 from app.models.asset_search_index import AssetSearchIndex, AssetType
 from app.utils.hangul import extract_initial_consonants
 from app.utils.search_tokens import build_prefix_tokens
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -36,7 +40,11 @@ class AssetSearchIndexBuilder:
     자산 검색 인덱스 배치 생성 서비스
 
     주어진 자산 목록에 대해 검색 인덱스를 생성하거나 업데이트합니다.
+
+    대량 데이터 처리를 위해 bulk upsert를 사용합니다.
     """
+
+    BATCH_SIZE = 1000  # Bulk insert 배치 크기
 
     def __init__(self, db: Session):
         """
@@ -45,13 +53,26 @@ class AssetSearchIndexBuilder:
         """
         self.db = db
 
-    def build(self, items: list[AssetSourceItem]) -> None:
+    def build(self, items: list[AssetSourceItem]) -> int:
         """
         자산 검색 인덱스를 생성하거나 업데이트합니다.
 
+        대량 데이터 처리를 위해 1,000개 단위로 bulk upsert를 수행합니다.
+
         Args:
             items: 인덱스를 생성할 자산 목록
+
+        Returns:
+            int: 생성/업데이트된 레코드 수
         """
+        if not items:
+            logger.warning("[AssetSearchIndexBuilder] 인덱싱할 항목이 없습니다.")
+            return 0
+
+        logger.info(f"[AssetSearchIndexBuilder] 인덱싱 시작: {len(items)}개 항목")
+
+        # 배치 데이터 준비
+        batch_data = []
         for item in items:
             initial_kr = self._extract_initial(item.name_kr)
             search_tokens = self._build_search_tokens(
@@ -60,17 +81,31 @@ class AssetSearchIndexBuilder:
                 item.ticker
             )
 
-            self._upsert_index(
-                ticker=item.ticker,
-                asset_type=item.asset_type,
-                name_kr=item.name_kr,
-                name_en=item.name_en,
-                initial_kr=initial_kr,
-                search_tokens=search_tokens,
-                exchange=item.exchange
+            batch_data.append({
+                "ticker": item.ticker,
+                "asset_type": item.asset_type,
+                "name_kr": item.name_kr,
+                "name_en": item.name_en,
+                "initial_kr": initial_kr,
+                "search_tokens": search_tokens,
+                "exchange": item.exchange,
+                "is_active": True,
+            })
+
+        # Bulk upsert 수행 (BATCH_SIZE 단위)
+        total_upserted = 0
+        for i in range(0, len(batch_data), self.BATCH_SIZE):
+            batch = batch_data[i:i + self.BATCH_SIZE]
+            count = self._bulk_upsert(batch)
+            total_upserted += count
+            logger.info(
+                f"[AssetSearchIndexBuilder] 배치 처리 완료: "
+                f"{i + count}/{len(batch_data)} ({count}개)"
             )
 
         self.db.commit()
+        logger.info(f"[AssetSearchIndexBuilder] 인덱싱 완료: {total_upserted}개 항목")
+        return total_upserted
 
     def _extract_initial(self, name_kr: Optional[str]) -> Optional[str]:
         """
@@ -113,51 +148,87 @@ class AssetSearchIndexBuilder:
 
         return list(tokens) if tokens else None
 
-    def _upsert_index(
-        self,
-        ticker: str,
-        asset_type: AssetType,
-        name_kr: Optional[str],
-        name_en: Optional[str],
-        initial_kr: Optional[str],
-        search_tokens: Optional[list[str]],
-        exchange: str
-    ) -> None:
+    def _bulk_upsert(self, batch_data: list[dict]) -> int:
         """
-        검색 인덱스를 생성하거나 업데이트합니다.
+        배치 데이터를 bulk upsert합니다.
+
+        PostgreSQL의 INSERT ... ON CONFLICT DO UPDATE를 사용하여
+        ticker와 asset_type이 중복될 경우 업데이트합니다.
 
         Args:
-            ticker: 티커 코드
-            asset_type: 자산 유형
-            name_kr: 한글 이름
-            name_en: 영문 이름
-            initial_kr: 초성
-            search_tokens: 검색 토큰
-            exchange: 거래소 코드
-        """
-        stmt = select(AssetSearchIndex).where(
-            AssetSearchIndex.ticker == ticker
-        )
-        result = self.db.execute(stmt)
-        existing = result.scalar_one_or_none()
+            batch_data: 삽입/업데이트할 데이터 리스트
 
-        if existing:
-            existing.asset_type = asset_type
-            existing.name_kr = name_kr
-            existing.name_en = name_en
-            existing.initial_kr = initial_kr
-            existing.search_tokens = search_tokens
-            existing.exchange = exchange
-            existing.is_active = True
-        else:
-            new_index = AssetSearchIndex(
-                ticker=ticker,
-                asset_type=asset_type,
-                name_kr=name_kr,
-                name_en=name_en,
-                initial_kr=initial_kr,
-                search_tokens=search_tokens,
-                exchange=exchange,
-                is_active=True
+        Returns:
+            int: 처리된 레코드 수
+        """
+        if not batch_data:
+            return 0
+
+        try:
+            # PostgreSQL INSERT ... ON CONFLICT DO UPDATE
+            stmt = insert(AssetSearchIndex).values(batch_data)
+
+            # ticker와 asset_type이 중복될 경우 업데이트
+            # NOTE: unique constraint가 필요함 (ticker, asset_type)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=['ticker', 'asset_type'],
+                set_={
+                    'name_kr': stmt.excluded.name_kr,
+                    'name_en': stmt.excluded.name_en,
+                    'initial_kr': stmt.excluded.initial_kr,
+                    'search_tokens': stmt.excluded.search_tokens,
+                    'exchange': stmt.excluded.exchange,
+                    'is_active': stmt.excluded.is_active,
+                }
             )
-            self.db.add(new_index)
+
+            # 실행
+            self.db.execute(stmt)
+            return len(batch_data)
+
+        except Exception as e:
+            logger.error(f"[AssetSearchIndexBuilder] Bulk upsert 실패: {e}")
+            # 롤백하고 재시도 (fallback to one-by-one)
+            self.db.rollback()
+            return self._fallback_upsert(batch_data)
+
+    def _fallback_upsert(self, batch_data: list[dict]) -> int:
+        """
+        Bulk upsert 실패 시 fallback으로 하나씩 upsert합니다.
+
+        Args:
+            batch_data: 삽입/업데이트할 데이터 리스트
+
+        Returns:
+            int: 처리된 레코드 수
+        """
+        count = 0
+        for data in batch_data:
+            try:
+                stmt = select(AssetSearchIndex).where(
+                    AssetSearchIndex.ticker == data['ticker'],
+                    AssetSearchIndex.asset_type == data['asset_type']
+                )
+                result = self.db.execute(stmt)
+                existing = result.scalar_one_or_none()
+
+                if existing:
+                    # 업데이트
+                    existing.name_kr = data['name_kr']
+                    existing.name_en = data['name_en']
+                    existing.initial_kr = data['initial_kr']
+                    existing.search_tokens = data['search_tokens']
+                    existing.exchange = data['exchange']
+                    existing.is_active = data['is_active']
+                else:
+                    # 삽입
+                    new_index = AssetSearchIndex(**data)
+                    self.db.add(new_index)
+
+                count += 1
+
+            except Exception as e:
+                logger.error(f"[AssetSearchIndexBuilder] 개별 upsert 실패: {e}")
+                continue
+
+        return count

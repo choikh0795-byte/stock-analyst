@@ -18,9 +18,13 @@ class KisMasterService:
     """
     KIS(한국투자증권) 마스터 파일을 다운로드하고 파싱하여
     종목명 ↔ 티커 매핑 및 티커 → 기본 정보를 제공하는 서비스
-    
+
     마스터 파일은 고정 길이(Fixed-width) 텍스트 형식이며,
     cp949 인코딩을 사용합니다.
+
+    지원 시장:
+    - 한국: KOSPI, KOSDAQ
+    - 미국: NASDAQ, NYSE, AMEX
     """
 
     # 마스터 파일 다운로드 URL (KIS 공식 다운로드 서버)
@@ -28,9 +32,22 @@ class KisMasterService:
     KOSPI_MASTER_URLS = [
         "https://new.real.download.dws.co.kr/common/master/kospi_code.mst.zip",
     ]
-    
+
     KOSDAQ_MASTER_URLS = [
         "https://new.real.download.dws.co.kr/common/master/kosdaq_code.mst.zip",
+    ]
+
+    # 미국 주식 마스터 파일 URL
+    NASDAQ_MASTER_URLS = [
+        "https://new.real.download.dws.co.kr/common/master/nasmst.cod.zip",
+    ]
+
+    NYSE_MASTER_URLS = [
+        "https://new.real.download.dws.co.kr/common/master/nysmst.cod.zip",
+    ]
+
+    AMEX_MASTER_URLS = [
+        "https://new.real.download.dws.co.kr/common/master/amsmst.cod.zip",
     ]
 
     # Part2 필드 구조 (고정 폭) - 코스피
@@ -104,6 +121,28 @@ class KisMasterService:
         'KRX300 종목 여부 (Y/N)', '매출액', '영업이익', '경상이익', '단기순이익', 'ROE(자기자본이익률)',
         '기준년월', '전일기준 시가총액 (억)', '그룹사 코드', '회사신용한도초과여부', '담보대출가능여부', '대주가능여부',
         '예비필드1', '예비필드2'  # TODO: 실제 필드 이름 확인 후 업데이트 필요
+    ]
+
+    # 미국 주식 필드 구조 (고정 폭)
+    # KIS API 문서 기준: 심볼(9), 한글명(40), 영문명(40), 등...
+    US_FIELD_SPECS = [
+        9,   # 심볼 (Symbol)
+        40,  # 한글종목명 (Korean Name)
+        40,  # 현지종목명 (English Name)
+        3,   # 국가코드
+        1,   # 거래소구분 (N: NASDAQ, A: AMEX, Y: NYSE)
+        9,   # 액면가
+        1,   # 통화단위
+    ]
+
+    US_COLUMNS = [
+        '심볼',
+        '한글종목명',
+        '현지종목명',
+        '국가코드',
+        '거래소구분',
+        '액면가',
+        '통화단위',
     ]
 
     def __init__(self, cache_dir: Optional[str] = None, enable_naver_fallback: bool = True):
@@ -211,6 +250,90 @@ class KisMasterService:
         except Exception as e:
             logger.error(f"[KisMasterService] 압축 해제 중 오류: {e}")
             return None
+
+    def _parse_us_master_file(self, file_path: Path, exchange: str) -> int:
+        """
+        미국 주식 마스터 파일을 파싱하여 메모리 캐시에 저장합니다.
+
+        Args:
+            file_path: 마스터 파일 경로
+            exchange: 거래소 구분 ("NASDAQ", "NYSE", "AMEX")
+
+        Returns:
+            int: 파싱된 종목 수
+        """
+        if not file_path.exists():
+            logger.error(f"[KisMasterService] 마스터 파일이 존재하지 않음: {file_path}")
+            return 0
+
+        try:
+            logger.info(f"[KisMasterService] {exchange} 마스터 파일 파싱 시작: {file_path}")
+
+            # 고정 폭 파일 파싱
+            df = pd.read_fwf(
+                file_path,
+                widths=self.US_FIELD_SPECS,
+                names=self.US_COLUMNS,
+                encoding='cp949'
+            )
+
+            # 데이터프레임을 순회하며 메모리 캐시에 저장
+            count = 0
+            for _, row in df.iterrows():
+                try:
+                    # 심볼 추출 (공백 제거)
+                    symbol = str(row['심볼']).strip()
+                    if not symbol or symbol == 'nan':
+                        continue
+
+                    # 티커 생성 (심볼만 사용, 거래소 suffix는 추가하지 않음)
+                    ticker = symbol
+
+                    # 한글 종목명
+                    name_kr = str(row['한글종목명']).strip()
+                    if name_kr == 'nan':
+                        name_kr = None
+
+                    # 영문 종목명
+                    name_en = str(row['현지종목명']).strip()
+                    if not name_en or name_en == 'nan':
+                        continue
+
+                    # 거래소 구분 코드 확인
+                    exchange_code = str(row.get('거래소구분', '')).strip()
+
+                    # 상세 정보 구성
+                    detail = {
+                        "name": name_kr if name_kr else name_en,
+                        "name_kr": name_kr,
+                        "name_en": name_en,
+                        "market": exchange,
+                        "exchange": exchange,
+                        "symbol": symbol,
+                        "exchange_code": exchange_code,
+                        "country_code": str(row.get('국가코드', '')).strip(),
+                    }
+
+                    # 매핑 저장
+                    if name_kr:
+                        self._name_to_code[name_kr] = ticker
+                    if name_en:
+                        self._name_to_code[name_en] = ticker
+
+                    self._code_to_detail[ticker] = detail
+
+                    count += 1
+
+                except Exception as e:
+                    logger.warning(f"[KisMasterService] 행 파싱 중 오류: {e}")
+                    continue
+
+            logger.info(f"[KisMasterService] {exchange} 마스터 파일 파싱 완료: {count}개 종목")
+            return count
+
+        except Exception as e:
+            logger.error(f"[KisMasterService] 마스터 파일 파싱 중 오류: {e}")
+            return 0
 
     def _parse_master_file(self, file_path: Path, market: str) -> int:
         """
@@ -345,20 +468,21 @@ class KisMasterService:
             logger.error(f"[KisMasterService] 마스터 파일 파싱 중 오류: {e}")
             return 0
 
-    def load_master_data(self, force_reload: bool = False) -> bool:
+    def load_master_data(self, force_reload: bool = False, include_us: bool = True) -> bool:
         """
         마스터 데이터를 로드합니다.
-        
+
         Args:
             force_reload: True이면 기존 캐시를 무시하고 재다운로드
-            
+            include_us: True이면 미국 주식 데이터도 포함 (기본값: True)
+
         Returns:
             bool: 로드 성공 여부
         """
         if self._loaded and not force_reload:
             logger.info("[KisMasterService] 이미 로드된 마스터 데이터 사용")
             return True
-        
+
         try:
             # KOSPI 마스터 파일 다운로드 및 압축 해제
             kospi_file = self._download_and_extract_master_file(
@@ -366,34 +490,73 @@ class KisMasterService:
                 "kospi_code.zip",
                 "kospi_code.mst"
             )
-            
+
             # KOSDAQ 마스터 파일 다운로드 및 압축 해제
             kosdaq_file = self._download_and_extract_master_file(
                 self.KOSDAQ_MASTER_URLS,
                 "kosdaq_code.zip",
                 "kosdaq_code.mst"
             )
-            
+
             # 파싱
             kospi_count = 0
             kosdaq_count = 0
-            
+
             if kospi_file:
                 kospi_count = self._parse_master_file(kospi_file, "KOSPI")
-            
+
             if kosdaq_file:
                 kosdaq_count = self._parse_master_file(kosdaq_file, "KOSDAQ")
-            
+
             total_count = kospi_count + kosdaq_count
-            
+
+            # 미국 주식 데이터 로드
+            nasdaq_count = 0
+            nyse_count = 0
+            amex_count = 0
+
+            if include_us:
+                # NASDAQ
+                nasdaq_file = self._download_and_extract_master_file(
+                    self.NASDAQ_MASTER_URLS,
+                    "nasmst.cod.zip",
+                    "nasmst.cod"
+                )
+                if nasdaq_file:
+                    nasdaq_count = self._parse_us_master_file(nasdaq_file, "NASDAQ")
+
+                # NYSE
+                nyse_file = self._download_and_extract_master_file(
+                    self.NYSE_MASTER_URLS,
+                    "nysmst.cod.zip",
+                    "nysmst.cod"
+                )
+                if nyse_file:
+                    nyse_count = self._parse_us_master_file(nyse_file, "NYSE")
+
+                # AMEX
+                amex_file = self._download_and_extract_master_file(
+                    self.AMEX_MASTER_URLS,
+                    "amsmst.cod.zip",
+                    "amsmst.cod"
+                )
+                if amex_file:
+                    amex_count = self._parse_us_master_file(amex_file, "AMEX")
+
+                total_count += nasdaq_count + nyse_count + amex_count
+
             if total_count > 0:
                 self._loaded = True
-                logger.info(f"[KisMasterService] 마스터 데이터 로드 완료: 총 {total_count}개 종목 (KOSPI: {kospi_count}, KOSDAQ: {kosdaq_count})")
+                logger.info(
+                    f"[KisMasterService] 마스터 데이터 로드 완료: 총 {total_count}개 종목 "
+                    f"(KOSPI: {kospi_count}, KOSDAQ: {kosdaq_count}, "
+                    f"NASDAQ: {nasdaq_count}, NYSE: {nyse_count}, AMEX: {amex_count})"
+                )
                 return True
             else:
                 logger.warning("[KisMasterService] 마스터 데이터 로드 실패: 파싱된 종목이 없음")
                 return False
-                
+
         except Exception as e:
             logger.error(f"[KisMasterService] 마스터 데이터 로드 중 오류: {e}")
             return False
@@ -507,23 +670,50 @@ class KisMasterService:
     def search_tickers(self, query: str, max_results: int = 5) -> List[Tuple[str, str]]:
         """
         종목명으로 티커를 검색합니다 (부분 매칭).
-        
+
         Args:
             query: 검색어
             max_results: 최대 결과 수
-            
+
         Returns:
             List[Tuple[str, str]]: [(종목명, 티커), ...] 리스트
         """
         if not self._loaded:
             return []
-        
+
         query_upper = query.upper()
         results = []
-        
+
         for stock_name, ticker in self._name_to_code.items():
             if query_upper in stock_name.upper():
                 results.append((stock_name, ticker))
                 if len(results) >= max_results:
                     break
         return results
+
+    def get_all_stocks(self) -> List[Dict]:
+        """
+        로드된 모든 종목 정보를 반환합니다.
+
+        검색 인덱스 생성을 위해 사용됩니다.
+
+        Returns:
+            List[Dict]: 종목 정보 리스트
+            각 dict는 ticker, name_kr, name_en, market, exchange 등을 포함
+        """
+        if not self._loaded:
+            logger.warning("[KisMasterService] 마스터 데이터가 로드되지 않음")
+            return []
+
+        result = []
+        for ticker, detail in self._code_to_detail.items():
+            result.append({
+                "ticker": ticker,
+                "name_kr": detail.get("name_kr"),
+                "name_en": detail.get("name_en"),
+                "market": detail.get("market"),
+                "exchange": detail.get("exchange", detail.get("market")),
+            })
+
+        logger.info(f"[KisMasterService] 전체 종목 정보 반환: {len(result)}개")
+        return result

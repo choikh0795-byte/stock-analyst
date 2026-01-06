@@ -82,7 +82,7 @@ class AssetSearchIndex(Base):
         onupdate=func.now()
     )
 
-    # Indexes
+    # Indexes and Constraints
     __table_args__ = (
         # GIN index for search_tokens array
         Index(
@@ -95,6 +95,15 @@ class AssetSearchIndex(Base):
             "idx_asset_type_active",
             "asset_type",
             "is_active"
+        ),
+        # Unique constraint for ticker and asset_type
+        # This allows the same ticker to exist in different asset types
+        # (e.g., "AAPL" as STOCK_US and "AAPL" as ETF)
+        Index(
+            "uq_asset_ticker_type",
+            "ticker",
+            "asset_type",
+            unique=True
         ),
     )
 
