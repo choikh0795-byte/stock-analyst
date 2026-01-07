@@ -16,6 +16,7 @@ interface SearchBoxProps {
 
 /**
  * 검색어와 일치하는 텍스트 부분을 하이라이트 처리
+ * 연한 인디고 배경, 진한 인디고 글자색, 두꺼운 글씨체 적용
  */
 const highlightMatch = (text: string, query: string): React.ReactNode => {
   if (!query.trim() || !text) return text
@@ -28,17 +29,13 @@ const highlightMatch = (text: string, query: string): React.ReactNode => {
     const parts = text.split(regex)
 
     return parts.map((part, index) => {
-      if (part.toLowerCase() === query.toLowerCase()) {
+      // Check if this part matches the query (case-insensitive)
+      // Use simple string comparison instead of regex.test to avoid state issues
+      if (part && part.toLowerCase() === query.toLowerCase()) {
         return (
           <mark
             key={index}
-            style={{
-              backgroundColor: 'rgba(79, 70, 229, 0.1)',
-              color: '#4f46e5',
-              fontWeight: 700,
-              padding: '0 4px',
-              borderRadius: '4px',
-            }}
+            className="bg-indigo-50 text-indigo-600 font-bold px-1 rounded"
           >
             {part}
           </mark>
@@ -47,6 +44,7 @@ const highlightMatch = (text: string, query: string): React.ReactNode => {
       return <span key={index}>{part}</span>
     })
   } catch (error) {
+    console.error('[SearchBox] Highlight error:', error)
     // If regex fails, return original text
     return text
   }
