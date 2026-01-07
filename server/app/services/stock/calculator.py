@@ -32,7 +32,8 @@ class StockCalculator:
         if eps is not None:
             try:
                 eps_float = float(eps)
-                if eps_float > 0:
+                # 음수 EPS도 유효한 값으로 처리 (적자 기업)
+                if eps_float != 0:  # 0이 아닌 모든 값 (양수, 음수 포함)
                     logger.info(f"[Calculation] EPS 1순위 성공: trailingEps/forwardEps = {eps_float}")
                     return eps_float
             except (ValueError, TypeError):
@@ -309,12 +310,13 @@ class StockCalculator:
                         )
 
                 logger.info(f"[Calculation] ROE 2차 계산 시도: 순이익={net_income}, 자본총계={total_equity}")
-                if net_income and net_income > 0 and total_equity and total_equity > 0:
+                # 음수 순이익도 허용 (적자 기업의 경우 ROE가 음수일 수 있음)
+                if net_income is not None and total_equity and total_equity > 0:
                     roe = round((net_income / total_equity) * 100, 2)
                     logger.info(f"[Calculation] ROE 2차 계산 성공(순이익/자본): {roe}%")
                 else:
                     logger.warning(
-                        f"[Calculation] ROE 2차 계산 불가: 순이익={net_income}, 자본총계={total_equity} (0 이하 값 또는 None)"
+                        f"[Calculation] ROE 2차 계산 불가: 순이익={net_income}, 자본총계={total_equity} (자본총계가 0 이하 또는 None)"
                     )
             except Exception as e:
                 logger.warning(f"[Calculation] ROE 2차 계산 실패: {str(e)}")
@@ -515,12 +517,13 @@ class StockCalculator:
                         )
 
                 logger.info(f"[Calculation] ROE 2차 계산 시도: 순이익={net_income}, 자본총계={total_equity}")
-                if net_income and net_income > 0 and total_equity and total_equity > 0:
+                # 음수 순이익도 허용 (적자 기업의 경우 ROE가 음수일 수 있음)
+                if net_income is not None and total_equity and total_equity > 0:
                     roe = round((net_income / total_equity) * 100, 2)
                     logger.info(f"[Calculation] ROE 2차 계산 성공(순이익/자본): {roe}%")
                 else:
                     logger.warning(
-                        f"[Calculation] ROE 2차 계산 불가: 순이익={net_income}, 자본총계={total_equity} (0 이하 값 또는 None)"
+                        f"[Calculation] ROE 2차 계산 불가: 순이익={net_income}, 자본총계={total_equity} (자본총계가 0 이하 또는 None)"
                     )
             except Exception as e:
                 logger.warning(f"[Calculation] ROE 2차 계산 실패: {str(e)}")
