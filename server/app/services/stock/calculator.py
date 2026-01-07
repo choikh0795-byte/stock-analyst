@@ -405,10 +405,17 @@ class StockCalculator:
 
 
 
-    def calculate_roe_without_stock(self, info: Dict) -> Optional[float]:
+    def calculate_roe_without_stock(self, info: Dict, backup_data: Optional[Dict] = None) -> Optional[float]:
         """
         stock 객체 없이 ROE를 계산합니다.
         balance_sheet와 income_stmt 조회 단계는 건너뜁니다.
+
+        Args:
+            info: yfinance info 딕셔너리
+            backup_data: 백업 데이터 딕셔너리 (pbr, per 등)
+
+        Returns:
+            Optional[float]: ROE 값 (% 단위) 또는 None
         """
 
         return_on_equity = info.get("returnOnEquity")
@@ -443,6 +450,22 @@ class StockCalculator:
                 logger.warning(f"[Calculation] ROE 2차 계산 실패: {str(e)}")
 
         # stock 객체가 없으므로 balance_sheet와 income_stmt 조회 단계는 건너뜀
+
+        # 4차 백업 로직: PBR/PER 역산을 통한 ROE 계산
+        if not roe and backup_data:
+            try:
+                pbr = backup_data.get("pbr") or backup_data.get("pb_ratio")
+                per = backup_data.get("per") or backup_data.get("pe_ratio")
+
+                if pbr is not None and per is not None:
+                    pbr_float = float(pbr)
+                    per_float = float(per)
+
+                    if pbr_float > 0 and per_float > 0:
+                        roe = round((pbr_float / per_float) * 100, 2)
+                        logger.info(f"[Calculation] ROE 4차 복구 성공 (PBR/PER 역산): {roe}%")
+            except Exception as e:
+                logger.warning(f"[Calculation] ROE 4차 복구 실패: {str(e)}")
 
         return roe
 
