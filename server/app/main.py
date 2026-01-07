@@ -30,28 +30,31 @@ async def lifespan(app: FastAPI):
     # [Startup] 서버 시작 시 실행
     logger.info("🚀 [Startup] 서버 시작 프로세스 진입")
 
-    # 메모리 검색 인덱스 초기화
+    # 자동완성 메모리 인덱스 초기화
+    # 중요: 이것이 DB 접근이 발생하는 유일한 시점입니다 (startup 시).
+    # 이후 API 요청 처리 중에는 절대로 DB에 접근하지 않습니다.
     if settings.DATABASE_URL:
         try:
-            logger.info("[Startup] 메모리 검색 인덱스 로딩 시작...")
-            memory_index = AssetSearchMemoryIndex()
+            logger.info("[Startup] 자동완성 메모리 인덱스 로딩 시작...")
+            memory_index = AutocompleteMemoryIndex()
 
-            # DB 세션 생성 및 데이터 로드
+            # DB 세션 생성 및 데이터 로드 (startup 시에만 DB 접근)
             db = SessionLocal()
             try:
                 memory_index.load_from_db(db)
                 logger.info(
-                    f"[Startup] ✅ 메모리 검색 인덱스 로딩 완료 "
+                    f"[Startup] ✅ 자동완성 메모리 인덱스 로딩 완료 "
                     f"(총 {memory_index.get_asset_count()}개 자산)"
                 )
+                logger.info("[Startup] ℹ️  이후 자동완성 요청은 메모리만 사용 (DB 접근 없음)")
             finally:
                 db.close()
 
         except Exception as e:
-            logger.error(f"[Startup] ❌ 메모리 검색 인덱스 로딩 실패: {e}")
-            logger.warning("[Startup] 검색 기능이 DB 직접 조회 모드로 작동합니다.")
+            logger.error(f"[Startup] ❌ 자동완성 메모리 인덱스 로딩 실패: {e}")
+            logger.warning("[Startup] 자동완성 기능이 비활성화됩니다.")
     else:
-        logger.warning("[Startup] DATABASE_URL이 없어 메모리 검색 인덱스를 건너뜁니다.")
+        logger.warning("[Startup] DATABASE_URL이 없어 자동완성 메모리 인덱스를 건너뜁니다.")
 
     yield  # 애플리케이션 작동 구간 (여기서부터 API 요청 수신)
 

@@ -59,12 +59,24 @@ async def search_ticker(
     stock_service: StockService = Depends(get_stock_service)
 ) -> TickerSearchResponse:
     """
-    종목명이나 기업명을 티커로 변환합니다.
-    
+    종목명이나 기업명을 티커로 변환합니다 (일반 검색 - DB/외부 API 사용).
+
+    **자동완성과의 차이**:
+    - 자동완성: GET /api/v1/assets/search (메모리 기반, 빠름, prefix 검색)
+    - 일반 검색: POST /api/v1/stock/search (이 엔드포인트, 정확한 종목명→티커 변환)
+
+    **DB 접근 정책**:
+    - 이 엔드포인트는 DB 또는 외부 API를 사용할 수 있습니다.
+    - KisMasterService (파일 기반 메모리 캐시) 또는 yfinance API를 사용합니다.
+
+    **사용 사례**:
+    - "삼성전자" → "005930.KS" 정확한 티커 변환
+    - "Apple" → "AAPL" 기업명→티커 변환
+
     Args:
         request: 검색 요청 데이터 (한글 종목명, 기업명, 티커 모두 가능)
         stock_service: 주입받은 StockService 인스턴스
-        
+
     Returns:
         TickerSearchResponse: 변환된 티커와 종목명
     """
