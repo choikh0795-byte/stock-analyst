@@ -241,6 +241,10 @@ class YahooStockProvider(BaseStockProvider):
             result["change_52week"] = None
             result["top_holdings"] = []
 
+        # 원본 info 딕셔너리 포함 (Service/Calculator에서 사용)
+        # Service의 _convert_to_calculator_format과 Calculator에서 필요한 raw 데이터 제공
+        result["_info"] = info
+
         return result
 
     def get_financial_data_only(self, ticker: str) -> Dict:

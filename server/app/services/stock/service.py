@@ -323,9 +323,31 @@ class StockService:
     def _convert_to_calculator_format(self, info: Dict) -> Dict:
         """
         Provider가 반환한 표준화된 딕셔너리를 calculator가 기대하는 형식으로 변환합니다.
+
+        개선 사항 (v3):
+        - _info 키가 있으면 원본 yfinance 데이터를 우선 사용
+        - 표준화된 키를 yfinance 형식 키로 매핑
         """
+        # _info가 있으면 원본 데이터 사용 (Yahoo Provider가 제공)
+        if "_info" in info and info["_info"]:
+            calc_info = info["_info"].copy()
+            # 표준화된 값으로 덮어쓰기 (Provider가 이미 계산한 값 우선)
+            if "current_price" in info:
+                calc_info["currentPrice"] = info["current_price"]
+            if "market_cap" in info:
+                calc_info["marketCap"] = info["market_cap"]
+            if "previous_close" in info:
+                calc_info["previousClose"] = info["previous_close"]
+            if "fifty_two_week_low" in info:
+                calc_info["fiftyTwoWeekLow"] = info["fifty_two_week_low"]
+            if "fifty_two_week_high" in info:
+                calc_info["fiftyTwoWeekHigh"] = info["fifty_two_week_high"]
+            if "target_mean_price" in info:
+                calc_info["targetMeanPrice"] = info["target_mean_price"]
+            return calc_info
+
+        # _info가 없으면 기존 로직 (표준화된 키를 yfinance 형식 키로 매핑)
         calc_info = info.copy()
-        # 표준화된 키를 yfinance 형식 키로 매핑
         if "current_price" in calc_info and "currentPrice" not in calc_info:
             calc_info["currentPrice"] = calc_info["current_price"]
         if "market_cap" in calc_info and "marketCap" not in calc_info:
