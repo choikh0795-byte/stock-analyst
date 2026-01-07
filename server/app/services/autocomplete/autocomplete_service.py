@@ -1,52 +1,68 @@
 """
-자산 검색 서비스
+자산 자동완성 서비스 (메모리 기반 - DB 접근 절대 금지)
 
-자동완성 검색 기능을 제공하는 서비스 레이어입니다.
-메모리 인덱스 기반으로 동작하여 DB 쿼리 없이 빠른 검색을 제공합니다.
+**중요**: 이 서비스는 자동완성 요청만 처리하며, 요청 처리 시점에 DB에 절대 접근하지 않습니다.
+모든 데이터는 서버 startup 시 메모리에 로드되며, 요청 시에는 메모리 인덱스만 사용합니다.
+
+일반 검색(full-text, DB 기반)은 StockProvider.search_ticker()를 사용하세요.
 """
 
 from typing import List, Dict
 import logging
 
-from app.services.search.memory_index import AssetSearchMemoryIndex
+from app.services.autocomplete.memory_index import AutocompleteMemoryIndex
 from app.models.asset_search_index import AssetType
 from app.utils.hangul import INITIAL_CONSONANTS, HANGUL_SYLLABLE_START, HANGUL_SYLLABLE_END
 
 logger = logging.getLogger(__name__)
 
 
-class AssetSearchService:
+class AutocompleteService:
     """
-    자산 검색 서비스 클래스 (메모리 기반)
+    자산 자동완성 서비스 (메모리 기반)
 
-    메모리 인덱스를 사용하여 자동완성 검색 기능을 제공하며,
-    한글 초성, 한글 음절, 영문/숫자 검색을 지원합니다.
+    **DB 접근 정책**:
+    - 요청 처리 시 DB 접근 절대 금지 (0% 가능성)
+    - 모든 데이터는 메모리 인덱스에서만 조회
+    - DB Session을 의존성으로 받지 않음
+
+    **사용 사례**:
+    - 검색창 자동완성 (실시간 prefix 검색)
+    - 최대 결과 개수 제한 (성능 최적화)
+
+    **NOT for**:
+    - 전체 검색 결과 조회
+    - 정확한 종목명 변환 (→ StockProvider.search_ticker() 사용)
 
     Attributes:
-        memory_index: 메모리에 로드된 자산 검색 인덱스
+        memory_index: 메모리에 로드된 자산 검색 인덱스 (Singleton)
     """
 
-    def __init__(self, memory_index: AssetSearchMemoryIndex):
+    def __init__(self, memory_index: AutocompleteMemoryIndex):
         """
-        AssetSearchService 생성자
+        AutocompleteService 생성자
 
         Args:
             memory_index: 메모리에 로드된 자산 검색 인덱스
+
+        중요: DB Session을 절대로 받지 않습니다!
         """
         self.memory_index = memory_index
 
     def search(self, query: str, limit: int = 10) -> List[Dict]:
         """
-        자산을 검색합니다.
+        자산을 자동완성 검색합니다 (메모리 기반).
+
+        **DB 접근**: 이 메서드는 DB에 절대 접근하지 않습니다.
 
         검색 로직:
-        - 초성만 있으면: initial_kr prefix 검색
+        - 초성만: "ㅅㅅㅈㅈ" → 삼성전자
         - 한글 + 초성 혼합: name_kr prefix 또는 initial_kr prefix 검색
         - 영문/숫자: ticker/name_en prefix 우선, search_tokens 검색
 
         Args:
             query: 검색 쿼리 문자열
-            limit: 반환할 최대 결과 개수 (기본값: 10)
+            limit: 반환할 최대 결과 개수 (기본값: 10, 자동완성에 최적화)
 
         Returns:
             검색 결과 리스트 (dict 형태)
@@ -58,27 +74,27 @@ class AssetSearchService:
             query_lower = query_trimmed.lower()
 
             if not query_trimmed:
-                logger.debug("[AssetSearchService] Empty query, returning empty results")
+                logger.debug("[AutocompleteService] Empty query, returning empty results")
                 return []
 
-            logger.info(f"[AssetSearchService] Searching for: '{query_trimmed}'")
+            logger.info(f"[AutocompleteService] Autocomplete request: q='{query_trimmed}', limit={limit}")
 
             # 메모리 인덱스 초기화 확인
             if not self.memory_index.is_initialized():
-                logger.warning("[AssetSearchService] Memory index not initialized")
+                logger.warning("[AutocompleteService] Memory index not initialized")
                 return []
 
             # 검색 타입 결정
             search_type = self._determine_search_type(query_trimmed)
-            logger.debug(f"[AssetSearchService] Search type: {search_type}")
+            logger.debug(f"[AutocompleteService] Search type: {search_type}")
 
             # 초성 1자 입력 시 limit을 5로 조정
             effective_limit = limit
             if search_type == "initial_only" and len(query_trimmed) == 1:
                 effective_limit = min(5, limit)
-                logger.debug(f"[AssetSearchService] Single initial consonant detected, limiting to {effective_limit}")
+                logger.debug(f"[AutocompleteService] Single initial consonant detected, limiting to {effective_limit}")
 
-            # 검색 타입별 검색 수행
+            # 검색 타입별 검색 수행 (메모리만 사용)
             if search_type == "alphanumeric":
                 # 영문/숫자: ticker/name_en prefix 우선 검색
                 results = self._search_with_alphanumeric(query_trimmed, query_lower, effective_limit)
@@ -88,15 +104,15 @@ class AssetSearchService:
 
             # 결과가 없으면 빈 배열 반환
             if not results:
-                logger.debug(f"[AssetSearchService] No results found for '{query_trimmed}'")
+                logger.debug(f"[AutocompleteService] No results found for '{query_trimmed}'")
                 return []
 
-            logger.debug(f"[AssetSearchService] Found {len(results)} results")
+            logger.debug(f"[AutocompleteService] Found {len(results)} results")
             return results
 
         except Exception as e:
             # 모든 예외를 로그에 기록하고 빈 배열 반환
-            logger.exception(f"[AssetSearchService] Search failed for query='{query}': {e}")
+            logger.exception(f"[AutocompleteService] Search failed for query='{query}': {e}")
             return []
 
     def _determine_search_type(self, query: str) -> str:
@@ -175,6 +191,8 @@ class AssetSearchService:
         """
         한글/초성 검색을 수행합니다 (메모리 기반).
 
+        **DB 접근**: 없음 (메모리만 사용)
+
         Args:
             query_trimmed: 정제된 검색 쿼리
             query_lower: 소문자 변환된 검색 쿼리
@@ -223,6 +241,8 @@ class AssetSearchService:
         """
         영문/숫자 검색을 수행합니다 (메모리 기반).
 
+        **DB 접근**: 없음 (메모리만 사용)
+
         우선순위:
         1. ticker prefix 일치
         2. name_en prefix 일치
@@ -269,6 +289,8 @@ class AssetSearchService:
         """
         Ticker prefix 검색 (메모리 기반)
 
+        **DB 접근**: 없음
+
         Args:
             query: 검색 쿼리 (소문자)
             limit: 최대 결과 개수
@@ -292,6 +314,8 @@ class AssetSearchService:
     def _search_by_name_kr(self, query: str, limit: int) -> List[Dict]:
         """
         한글 이름 prefix 검색 (메모리 기반)
+
+        **DB 접근**: 없음
 
         Args:
             query: 검색 쿼리
@@ -318,6 +342,8 @@ class AssetSearchService:
         """
         초성 prefix 검색 (메모리 기반)
 
+        **DB 접근**: 없음
+
         Args:
             query: 검색 쿼리 (초성)
             limit: 최대 결과 개수
@@ -342,6 +368,8 @@ class AssetSearchService:
         """
         영문 이름 prefix 검색 (메모리 기반)
 
+        **DB 접근**: 없음
+
         Args:
             query: 검색 쿼리 (소문자)
             limit: 최대 결과 개수
@@ -365,6 +393,8 @@ class AssetSearchService:
     def _search_by_tokens(self, query: str, limit: int) -> List[Dict]:
         """
         search_tokens 검색 (메모리 기반)
+
+        **DB 접근**: 없음
 
         Args:
             query: 검색 쿼리 (소문자)
