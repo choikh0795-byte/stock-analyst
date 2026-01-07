@@ -117,13 +117,29 @@ class YahooStockProvider(BaseStockProvider):
         Returns:
             계산된 EPS 값 (float) 또는 None
         """
+
+        # logger.warning(
+        #     f"[YahooStockProvider][DEBUG] JOBX info dump keys: {list(info.keys())}"
+        # )
+        # logger.warning(
+        #     f"[YahooStockProvider][DEBUG] JOBX EPS related fields: "
+        #     f"trailingEps={info.get('trailingEps')}, "
+        #     f"forwardEps={info.get('forwardEps')}, "
+        #     f"netIncomeToCommon={info.get('netIncomeToCommon')}, "
+        #     f"sharesOutstanding={info.get('sharesOutstanding')}, "
+        #     f"epsCurrentYear={info.get('epsCurrentYear')}, "
+        #     f"trailingPE={info.get('trailingPE')}"
+        # )
+
         # 1순위: trailingEps 또는 forwardEps 직접 접근
         eps = info.get("trailingEps") or info.get("forwardEps")
         if eps is not None:
             try:
                 eps_float = float(eps)
-                if eps_float > 0:
-                    logger.info(f"[YahooStockProvider] EPS 1순위 성공: trailingEps/forwardEps = {eps_float}")
+                if eps_float != 0:
+                    logger.info(
+                        f"[YahooStockProvider] EPS 1순위 성공: trailingEps/forwardEps = {eps_float}"
+                    )
                     return eps_float
             except (ValueError, TypeError):
                 pass
@@ -135,13 +151,14 @@ class YahooStockProvider(BaseStockProvider):
             try:
                 net_income_float = float(net_income)
                 shares_float = float(shares_outstanding)
-                if shares_float > 0 and net_income_float > 0:
+                if shares_float > 0:
                     eps = net_income_float / shares_float
-                    logger.info(
-                        f"[YahooStockProvider] EPS 2순위 성공: netIncomeToCommon({net_income_float}) / "
-                        f"sharesOutstanding({shares_float}) = {eps}"
-                    )
-                    return eps
+                    if eps != 0:
+                        logger.info(
+                            f"[YahooStockProvider] EPS 2순위 성공: netIncomeToCommon / sharesOutstanding = {eps}"
+                        )
+                        return eps
+
             except (ValueError, TypeError) as e:
                 logger.debug(f"[YahooStockProvider] EPS 2순위 계산 실패: {e}")
         
@@ -150,7 +167,7 @@ class YahooStockProvider(BaseStockProvider):
         if eps_current_year is not None:
             try:
                 eps_float = float(eps_current_year)
-                if eps_float > 0:
+                if eps_float != 0:
                     logger.info(f"[YahooStockProvider] EPS 3순위 성공: epsCurrentYear = {eps_float}")
                     return eps_float
             except (ValueError, TypeError):
