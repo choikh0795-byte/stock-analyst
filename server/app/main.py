@@ -10,7 +10,7 @@ from app.core.config import settings
 from app.core.database import Base, engine, SessionLocal
 from app.models import StockAnalysisLog
 from app.services.stock import StockService  # [추가] 서비스 로딩을 위해 import
-from app.services.search import AssetSearchMemoryIndex
+from app.services.autocomplete.memory_index import AutocompleteMemoryIndex
 
 # 로깅 설정
 logging.basicConfig(
