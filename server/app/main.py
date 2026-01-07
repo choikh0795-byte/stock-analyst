@@ -7,9 +7,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routers import update_log_router
 from app.api.v1 import api_router
 from app.core.config import settings
-from app.core.database import Base, engine
+from app.core.database import Base, engine, SessionLocal
 from app.models import StockAnalysisLog
 from app.services.stock import StockService  # [추가] 서비스 로딩을 위해 import
+from app.services.search import AssetSearchMemoryIndex
 
 # 로깅 설정
 logging.basicConfig(
@@ -28,6 +29,29 @@ async def lifespan(app: FastAPI):
     """
     # [Startup] 서버 시작 시 실행
     logger.info("🚀 [Startup] 서버 시작 프로세스 진입")
+
+    # 메모리 검색 인덱스 초기화
+    if settings.DATABASE_URL:
+        try:
+            logger.info("[Startup] 메모리 검색 인덱스 로딩 시작...")
+            memory_index = AssetSearchMemoryIndex()
+
+            # DB 세션 생성 및 데이터 로드
+            db = SessionLocal()
+            try:
+                memory_index.load_from_db(db)
+                logger.info(
+                    f"[Startup] ✅ 메모리 검색 인덱스 로딩 완료 "
+                    f"(총 {memory_index.get_asset_count()}개 자산)"
+                )
+            finally:
+                db.close()
+
+        except Exception as e:
+            logger.error(f"[Startup] ❌ 메모리 검색 인덱스 로딩 실패: {e}")
+            logger.warning("[Startup] 검색 기능이 DB 직접 조회 모드로 작동합니다.")
+    else:
+        logger.warning("[Startup] DATABASE_URL이 없어 메모리 검색 인덱스를 건너뜁니다.")
 
     yield  # 애플리케이션 작동 구간 (여기서부터 API 요청 수신)
 
