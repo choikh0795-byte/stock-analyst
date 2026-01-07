@@ -89,7 +89,14 @@ class StockService:
         roe = info.get("roe")
         if not roe:
             calc_info = self._convert_to_calculator_format(info)
-            roe = self.calculator.calculate_roe_without_stock(calc_info)
+            # PBR/PER 백업 데이터 준비 (Yahoo 실패 시 KIS/FDR 데이터 활용)
+            backup_data = {
+                "pbr": pb_ratio,
+                "pb_ratio": pb_ratio,
+                "per": pe_ratio,
+                "pe_ratio": pe_ratio,
+            }
+            roe = self.calculator.calculate_roe_without_stock(calc_info, backup_data)
         
         # EPS 계산: Provider가 이미 계산한 값 사용
         eps = info.get("eps")

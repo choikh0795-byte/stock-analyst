@@ -1,7 +1,6 @@
 import logging
 from typing import Dict, List, Optional
 
-import requests
 import yfinance as yf
 
 from .base_provider import BaseStockProvider
@@ -27,25 +26,14 @@ class YahooStockProvider(BaseStockProvider):
     def _get_ticker(self, ticker: str):
         """
         yfinance Ticker 객체를 생성합니다.
-        Render 등 서버 환경에서의 차단을 막기 위해 User-Agent가 포함된 Session을 주입합니다.
-        
+
         Args:
             ticker: 주식 티커 심볼
-            
+
         Returns:
             yfinance.Ticker: Ticker 객체
         """
-        try:
-            session = requests.Session()
-            # 브라우저인 척 위장하는 헤더 설정
-            session.headers.update({
-                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-            })
-            return yf.Ticker(ticker, session=session)
-        except Exception as e:
-            logger.error(f"[YahooStockProvider] Ticker 생성 중 오류: {e}")
-            # fallback: 세션 없이 시도
-            return yf.Ticker(ticker)
+        return yf.Ticker(ticker)
 
     def _get_info(self, stock) -> Dict:
         """
