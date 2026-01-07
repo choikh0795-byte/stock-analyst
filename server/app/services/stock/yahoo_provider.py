@@ -100,81 +100,6 @@ class YahooStockProvider(BaseStockProvider):
 
         return info
 
-    def _calculate_eps(self, info: Dict, current_price: float) -> Optional[float]:
-        """
-        EPS(주당순이익)를 다단계 방어 로직으로 계산
-        
-        우선순위:
-        1. trailingEps 또는 forwardEps (직접 접근)
-        2. netIncomeToCommon / sharesOutstanding (기본 계산)
-        3. epsCurrentYear (기존 필드)
-        4. currentPrice / trailingPE (밸류에이션 역산)
-        
-        Args:
-            info: yfinance API 응답 데이터 딕셔너리
-            current_price: 현재 주가
-            
-        Returns:
-            계산된 EPS 값 (float) 또는 None
-        """
-        # 1순위: trailingEps 또는 forwardEps 직접 접근
-        eps = info.get("trailingEps") or info.get("forwardEps")
-        if eps is not None:
-            try:
-                eps_float = float(eps)
-                if eps_float > 0:
-                    logger.info(f"[YahooStockProvider] EPS 1순위 성공: trailingEps/forwardEps = {eps_float}")
-                    return eps_float
-            except (ValueError, TypeError):
-                pass
-        
-        # 2순위: netIncomeToCommon / sharesOutstanding
-        net_income = info.get("netIncomeToCommon")
-        shares_outstanding = info.get("sharesOutstanding")
-        if net_income is not None and shares_outstanding is not None:
-            try:
-                net_income_float = float(net_income)
-                shares_float = float(shares_outstanding)
-                if shares_float > 0 and net_income_float > 0:
-                    eps = net_income_float / shares_float
-                    logger.info(
-                        f"[YahooStockProvider] EPS 2순위 성공: netIncomeToCommon({net_income_float}) / "
-                        f"sharesOutstanding({shares_float}) = {eps}"
-                    )
-                    return eps
-            except (ValueError, TypeError) as e:
-                logger.debug(f"[YahooStockProvider] EPS 2순위 계산 실패: {e}")
-        
-        # 3순위: epsCurrentYear
-        eps_current_year = info.get("epsCurrentYear")
-        if eps_current_year is not None:
-            try:
-                eps_float = float(eps_current_year)
-                if eps_float > 0:
-                    logger.info(f"[YahooStockProvider] EPS 3순위 성공: epsCurrentYear = {eps_float}")
-                    return eps_float
-            except (ValueError, TypeError):
-                pass
-        
-        # 4순위: currentPrice / trailingPE (밸류에이션 역산)
-        trailing_pe = info.get("trailingPE")
-        if current_price and current_price > 0 and trailing_pe is not None:
-            try:
-                trailing_pe_float = float(trailing_pe)
-                if trailing_pe_float > 0:
-                    eps = current_price / trailing_pe_float
-                    logger.info(
-                        f"[YahooStockProvider] EPS 4순위 성공: currentPrice({current_price}) / "
-                        f"trailingPE({trailing_pe_float}) = {eps}"
-                    )
-                    return eps
-            except (ValueError, TypeError) as e:
-                logger.debug(f"[YahooStockProvider] EPS 4순위 계산 실패: {e}")
-        
-        # 모든 단계 실패
-        logger.warning("[YahooStockProvider] EPS 계산 실패: 모든 단계 실패")
-        return None
-
     def _calculate_current_price(self, info: Dict, stock) -> float:
         """
         현재가를 계산합니다.
@@ -293,78 +218,15 @@ class YahooStockProvider(BaseStockProvider):
             logger.info(f"[YahooStockProvider] ETF 지표 추출 완료: {ticker}")
 
         else:
-            # 주식 지표 (기존 로직)
+            # 주식 지표 (raw 데이터만 추출, 계산은 Calculator에서)
             logger.info(f"[YahooStockProvider] 주식 감지: {ticker}, 주식 지표 추출 시작")
 
-            # EPS 계산
-            eps = self._calculate_eps(info, current_price)
-            result["eps"] = eps
+            # Raw 데이터만 추출 (계산하지 않음)
+            result["eps"] = None  # Calculator에서 계산
+            result["roe"] = None  # Calculator에서 계산
+            result["debt_ratio"] = None  # Calculator에서 계산
 
-            # ROE 변환 (% 단위로)
-            roe = info.get("returnOnEquity")
-            roe_percent = None
-            if roe is not None:
-                try:
-                    roe_percent = float(roe) * 100
-                except (ValueError, TypeError):
-                    pass
-            result["roe"] = roe_percent
-
-            # 부채비율 계산 (Debt Ratio = Total Debt / Total Assets * 100)
-            debt_ratio = None
-            total_debt = info.get("totalDebt")
-
-            # totalDebt가 없으면 totalLiabilities 사용
-            if not total_debt or total_debt <= 0:
-                total_debt = info.get("totalLiabilities")
-
-            if total_debt and total_debt > 0:
-                # 1순위: totalAssets 직접 사용
-                total_assets = info.get("totalAssets")
-                if total_assets is not None and total_assets > 0:
-                    try:
-                        debt_ratio = (float(total_debt) / float(total_assets)) * 100
-                        logger.info(f"[YahooStockProvider] 부채비율 1차 계산: {debt_ratio:.2f}% (부채={total_debt:,}, 자산={total_assets:,})")
-                    except (ValueError, TypeError, ZeroDivisionError):
-                        pass
-
-                # 2순위: ROA 역산
-                if debt_ratio is None:
-                    return_on_assets = info.get("returnOnAssets")
-                    net_income = info.get("netIncomeToCommon")
-
-                    if return_on_assets is not None and return_on_assets > 0 and net_income is not None:
-                        try:
-                            total_assets_calc = float(net_income) / float(return_on_assets)
-                            debt_ratio = (float(total_debt) / total_assets_calc) * 100
-                            logger.info(
-                                f"[YahooStockProvider] 부채비율 2차 계산 (ROA 역산): {debt_ratio:.2f}% "
-                                f"(부채={total_debt:,}, 자산={total_assets_calc:,.0f})"
-                            )
-                        except (ValueError, TypeError, ZeroDivisionError):
-                            pass
-
-                # 3순위: debtToEquity 공식 사용
-                if debt_ratio is None:
-                    debt_to_equity = info.get("debtToEquity")
-                    if debt_to_equity is not None:
-                        try:
-                            debt_to_equity_float = float(debt_to_equity)
-                            if debt_to_equity_float >= 0:
-                                # debtToEquity가 100 이상이면 이미 % 단위
-                                if debt_to_equity_float >= 100:
-                                    debt_to_equity_ratio = debt_to_equity_float / 100
-                                else:
-                                    debt_to_equity_ratio = debt_to_equity_float
-
-                                debt_ratio = (debt_to_equity_ratio / (1 + debt_to_equity_ratio)) * 100
-                                logger.info(f"[YahooStockProvider] 부채비율 3차 계산 (debtToEquity 공식): {debt_ratio:.2f}%")
-                        except (ValueError, TypeError, ZeroDivisionError):
-                            pass
-
-            result["debt_ratio"] = debt_ratio
-
-            # 주식 전용 지표
+            # 주식 전용 지표 (raw 데이터)
             result["pe_ratio"] = info.get("trailingPE") or info.get("forwardPE")
             result["pb_ratio"] = info.get("priceToBook")
             result["target_mean_price"] = info.get("targetMeanPrice")
@@ -383,18 +245,18 @@ class YahooStockProvider(BaseStockProvider):
 
     def get_financial_data_only(self, ticker: str) -> Dict:
         """
-        Yahoo Finance에서 재무제표 데이터만 경량으로 조회합니다.
+        Yahoo Finance에서 재무제표 raw 데이터만 경량으로 조회합니다.
 
-        성능 최적화 (v2):
-        - ROE, 부채비율, 목표가를 이미 계산된 값으로 직접 추출
-        - 불필요한 계산 로직 제거 (Calculator 호출 불필요)
-        - KIS와 병합 시 즉시 사용 가능
+        성능 최적화 (v3 - 리팩토링):
+        - Raw 데이터만 추출 (계산은 Calculator에서)
+        - ROE, 부채비율은 Service/Calculator에서 처리
+        - KIS와 병합 후 Calculator에서 계산
 
         Args:
             ticker: 주식 티커 심볼
 
         Returns:
-            Dict: 재무제표 데이터 (ROE, 부채비율, 목표가)
+            Dict: 재무제표 raw 데이터 (returnOnEquity, totalDebt, totalAssets, targetMeanPrice 등)
         """
         try:
             stock = self._get_ticker(ticker)
@@ -404,78 +266,26 @@ class YahooStockProvider(BaseStockProvider):
                 logger.warning(f"[YahooStockProvider] info 조회 실패: {ticker}")
                 return {}
 
-            # ✅ ROE 직접 추출 (Yahoo가 이미 계산한 값)
-            roe = info.get("returnOnEquity")
-            roe_percent = None
-            if roe is not None:
-                try:
-                    roe_percent = float(roe) * 100  # 0.14094 → 14.094%
-                    logger.info(f"[YahooStockProvider] ROE 추출: {roe_percent:.2f}%")
-                except (ValueError, TypeError):
-                    pass
-
-            # ✅ 부채비율 계산 (debtToEquity가 아닌 Debt/Assets 비율 계산)
-            # ⚠️ 주의: debtToEquity는 부채/자본 비율이므로 부채/자산 비율과 다릅니다!
-            debt_ratio = None
-            total_debt = info.get("totalDebt")
-
-            # totalDebt가 없으면 totalLiabilities 사용
-            if not total_debt or total_debt <= 0:
-                total_debt = info.get("totalLiabilities")
-
-            if total_debt and total_debt > 0:
-                # 1순위: totalAssets 직접 사용
-                total_assets = info.get("totalAssets")
-                if total_assets is not None and total_assets > 0:
-                    try:
-                        debt_ratio = (float(total_debt) / float(total_assets)) * 100
-                        logger.info(f"[YahooStockProvider] 부채비율 1차 계산: {debt_ratio:.2f}% (부채={total_debt:,}, 자산={total_assets:,})")
-                    except (ValueError, TypeError, ZeroDivisionError):
-                        pass
-
-                # 2순위: ROA 역산
-                if debt_ratio is None:
-                    return_on_assets = info.get("returnOnAssets")
-                    net_income = info.get("netIncomeToCommon")
-
-                    if return_on_assets is not None and return_on_assets > 0 and net_income is not None:
-                        try:
-                            total_assets_calc = float(net_income) / float(return_on_assets)
-                            debt_ratio = (float(total_debt) / total_assets_calc) * 100
-                            logger.info(
-                                f"[YahooStockProvider] 부채비율 2차 계산 (ROA 역산): {debt_ratio:.2f}% "
-                                f"(부채={total_debt:,}, 자산={total_assets_calc:,.0f})"
-                            )
-                        except (ValueError, TypeError, ZeroDivisionError):
-                            pass
-
-                # 3순위: debtToEquity 공식 사용
-                if debt_ratio is None:
-                    debt_to_equity = info.get("debtToEquity")
-                    if debt_to_equity is not None:
-                        try:
-                            debt_to_equity_float = float(debt_to_equity)
-                            if debt_to_equity_float >= 0:
-                                # debtToEquity가 100 이상이면 이미 % 단위
-                                if debt_to_equity_float >= 100:
-                                    debt_to_equity_ratio = debt_to_equity_float / 100
-                                else:
-                                    debt_to_equity_ratio = debt_to_equity_float
-
-                                debt_ratio = (debt_to_equity_ratio / (1 + debt_to_equity_ratio)) * 100
-                                logger.info(f"[YahooStockProvider] 부채비율 3차 계산 (debtToEquity 공식): {debt_ratio:.2f}%")
-                        except (ValueError, TypeError, ZeroDivisionError):
-                            pass
-
-            # ✅ 목표가 직접 추출
+            # Raw 데이터만 추출 (계산 없음)
+            return_on_equity = info.get("returnOnEquity")  # 0.14094 형태 (raw)
+            total_debt = info.get("totalDebt") or info.get("totalLiabilities")
+            total_assets = info.get("totalAssets")
             target_mean_price = info.get("targetMeanPrice")
-            if target_mean_price is not None:
-                logger.info(f"[YahooStockProvider] 목표가 추출: {target_mean_price}")
+
+            logger.info(
+                f"[YahooStockProvider] 재무제표 raw 데이터 추출: "
+                f"returnOnEquity={return_on_equity}, totalDebt={total_debt}, "
+                f"totalAssets={total_assets}, targetMeanPrice={target_mean_price}"
+            )
 
             return {
-                "roe": roe_percent,  # % 단위 (예: 14.09)
-                "debt_ratio": debt_ratio,  # % 단위 (예: 6.38)
-                "target_mean_price": target_mean_price,  # 원화 또는 달러 (예: 146689.66)
+                "returnOnEquity": return_on_equity,  # raw 값 (0.14094)
+                "totalDebt": total_debt,  # raw 값
+                "totalAssets": total_assets,  # raw 값
+                "netIncomeToCommon": info.get("netIncomeToCommon"),  # 부채비율 계산용
+                "returnOnAssets": info.get("returnOnAssets"),  # 부채비율 계산용
+                "debtToEquity": info.get("debtToEquity"),  # 부채비율 계산용
+                "targetMeanPrice": target_mean_price,  # raw 값
             }
 
         except Exception as e:
