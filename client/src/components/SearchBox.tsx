@@ -12,6 +12,42 @@ interface SearchBoxProps {
 }
 
 /**
+ * 검색어와 일치하는 텍스트 부분을 하이라이트 처리
+ * 연한 인디고 배경, 진한 인디고 글자색, 두꺼운 글씨체 적용
+ */
+const highlightMatch = (text: string, query: string): React.ReactNode => {
+  if (!query.trim() || !text) return text
+
+  // Escape special regex characters
+  const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+  try {
+    const regex = new RegExp(`(${escapedQuery})`, 'gi')
+    const parts = text.split(regex)
+
+    return parts.map((part, index) => {
+      // Check if this part matches the query (case-insensitive)
+      // Use simple string comparison instead of regex.test to avoid state issues
+      if (part && part.toLowerCase() === query.toLowerCase()) {
+        return (
+          <mark
+            key={index}
+            className="bg-indigo-50 text-indigo-600 font-bold px-1 rounded"
+          >
+            {part}
+          </mark>
+        )
+      }
+      return <span key={index}>{part}</span>
+    })
+  } catch (error) {
+    console.error('[SearchBox] Highlight error:', error)
+    // If regex fails, return original text
+    return text
+  }
+}
+
+/**
  * 주식 티커 검색 입력 컴포넌트
  */
 export const SearchBox: React.FC<SearchBoxProps> = ({

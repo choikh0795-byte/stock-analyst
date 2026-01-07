@@ -10,82 +10,6 @@ logger = logging.getLogger(__name__)
 class StockCalculator:
     """계산 및 보정 로직 전담 (숫자 값만 반환)."""
 
-    def calculate_eps(self, info: Dict, current_price: Optional[float] = None) -> Optional[float]:
-        """
-        EPS(주당순이익)를 다단계 방어 로직으로 계산
-
-        우선순위:
-        1. trailingEps 또는 forwardEps (직접 접근)
-        2. netIncomeToCommon / sharesOutstanding (기본 계산)
-        3. epsCurrentYear (기존 필드)
-        4. currentPrice / trailingPE (밸류에이션 역산)
-
-        Args:
-            info: yfinance API 응답 데이터 딕셔너리
-            current_price: 현재 주가 (optional, 4순위 계산용)
-
-        Returns:
-            계산된 EPS 값 (float) 또는 None
-        """
-        # 1순위: trailingEps 또는 forwardEps 직접 접근
-        eps = info.get("trailingEps") or info.get("forwardEps")
-        if eps is not None:
-            try:
-                eps_float = float(eps)
-                if eps_float > 0:
-                    logger.info(f"[Calculation] EPS 1순위 성공: trailingEps/forwardEps = {eps_float}")
-                    return eps_float
-            except (ValueError, TypeError):
-                pass
-
-        # 2순위: netIncomeToCommon / sharesOutstanding
-        net_income = info.get("netIncomeToCommon")
-        shares_outstanding = info.get("sharesOutstanding")
-        if net_income is not None and shares_outstanding is not None:
-            try:
-                net_income_float = float(net_income)
-                shares_float = float(shares_outstanding)
-                if shares_float > 0:
-                    # 음수 순이익도 허용 (적자 기업)
-                    eps = net_income_float / shares_float
-                    logger.info(
-                        f"[Calculation] EPS 2순위 성공: netIncomeToCommon({net_income_float}) / "
-                        f"sharesOutstanding({shares_float}) = {eps}"
-                    )
-                    return eps
-            except (ValueError, TypeError) as e:
-                logger.debug(f"[Calculation] EPS 2순위 계산 실패: {e}")
-
-        # 3순위: epsCurrentYear
-        eps_current_year = info.get("epsCurrentYear")
-        if eps_current_year is not None:
-            try:
-                eps_float = float(eps_current_year)
-                if eps_float != 0:  # 0도 유효한 값으로 취급
-                    logger.info(f"[Calculation] EPS 3순위 성공: epsCurrentYear = {eps_float}")
-                    return eps_float
-            except (ValueError, TypeError):
-                pass
-
-        # 4순위: currentPrice / trailingPE (밸류에이션 역산)
-        trailing_pe = info.get("trailingPE")
-        if current_price and current_price > 0 and trailing_pe is not None:
-            try:
-                trailing_pe_float = float(trailing_pe)
-                if trailing_pe_float > 0:
-                    eps = current_price / trailing_pe_float
-                    logger.info(
-                        f"[Calculation] EPS 4순위 성공: currentPrice({current_price}) / "
-                        f"trailingPE({trailing_pe_float}) = {eps}"
-                    )
-                    return eps
-            except (ValueError, TypeError) as e:
-                logger.debug(f"[Calculation] EPS 4순위 계산 실패: {e}")
-
-        # 모든 단계 실패
-        logger.warning("[Calculation] EPS 계산 실패: 모든 단계 실패")
-        return None
-
     def calculate_current_price(self, info: Dict, stock) -> float:
         current_price = (
             info.get("currentPrice")
@@ -481,17 +405,10 @@ class StockCalculator:
 
 
 
-    def calculate_roe_without_stock(self, info: Dict, backup_data: Optional[Dict] = None) -> Optional[float]:
+    def calculate_roe_without_stock(self, info: Dict) -> Optional[float]:
         """
         stock 객체 없이 ROE를 계산합니다.
         balance_sheet와 income_stmt 조회 단계는 건너뜁니다.
-
-        Args:
-            info: yfinance info 딕셔너리
-            backup_data: 백업 데이터 딕셔너리 (pbr, per 등)
-
-        Returns:
-            Optional[float]: ROE 값 (% 단위) 또는 None
         """
 
         return_on_equity = info.get("returnOnEquity")
@@ -526,22 +443,6 @@ class StockCalculator:
                 logger.warning(f"[Calculation] ROE 2차 계산 실패: {str(e)}")
 
         # stock 객체가 없으므로 balance_sheet와 income_stmt 조회 단계는 건너뜀
-
-        # 4차 백업 로직: PBR/PER 역산을 통한 ROE 계산
-        if not roe and backup_data:
-            try:
-                pbr = backup_data.get("pbr") or backup_data.get("pb_ratio")
-                per = backup_data.get("per") or backup_data.get("pe_ratio")
-
-                if pbr is not None and per is not None:
-                    pbr_float = float(pbr)
-                    per_float = float(per)
-
-                    if pbr_float > 0 and per_float > 0:
-                        roe = round((pbr_float / per_float) * 100, 2)
-                        logger.info(f"[Calculation] ROE 4차 복구 성공 (PBR/PER 역산): {roe}%")
-            except Exception as e:
-                logger.warning(f"[Calculation] ROE 4차 복구 실패: {str(e)}")
 
         return roe
 
