@@ -11,6 +11,7 @@ from app.core.database import Base, engine, SessionLocal
 from app.models import StockAnalysisLog
 from app.services.stock import StockService  # [추가] 서비스 로딩을 위해 import
 from app.services.autocomplete.memory_index import AutocompleteMemoryIndex
+from app.services.stock.token_scheduler import TokenScheduler
 
 # 로깅 설정
 logging.basicConfig(
@@ -56,10 +57,31 @@ async def lifespan(app: FastAPI):
     else:
         logger.warning("[Startup] DATABASE_URL이 없어 자동완성 메모리 인덱스를 건너뜁니다.")
 
+    # KIS API 토큰 스케줄러 시작
+    # 주의: startup 시에는 토큰을 발급하지 않음 (파일에서 재사용)
+    # 매일 06:00에만 토큰 만료 여부를 체크하고 필요 시 갱신
+    token_scheduler = None
+    try:
+        logger.info("[Startup] KIS API 토큰 스케줄러 시작...")
+        token_scheduler = TokenScheduler()
+        token_scheduler.start()
+        logger.info("[Startup] ✅ KIS API 토큰 스케줄러 시작 완료 (매일 06:00 실행)")
+    except Exception as e:
+        logger.error(f"[Startup] ❌ KIS API 토큰 스케줄러 시작 실패: {e}")
+        logger.warning("[Startup] 토큰 스케줄러가 비활성화됩니다 (기존 토큰 발급 방식 사용)")
+
     yield  # 애플리케이션 작동 구간 (여기서부터 API 요청 수신)
 
     # [Shutdown] 서버 종료 시 실행 (필요 시 리소스 정리)
     logger.info("👋 [Shutdown] 서버 종료 프로세스 진행 중...")
+
+    # 토큰 스케줄러 중지
+    if token_scheduler is not None:
+        try:
+            token_scheduler.stop()
+            logger.info("[Shutdown] ✅ KIS API 토큰 스케줄러 중지 완료")
+        except Exception as e:
+            logger.error(f"[Shutdown] ❌ KIS API 토큰 스케줄러 중지 실패: {e}")
 
 
 def create_application() -> FastAPI:

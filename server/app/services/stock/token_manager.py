@@ -109,26 +109,68 @@ class AccessTokenManager:
     def is_token_valid(self, access_token: Optional[str] = None, expires_at: Optional[datetime] = None) -> bool:
         """
         토큰이 유효한지 확인합니다.
-        
+
         Args:
             access_token: 확인할 토큰 (None인 경우 내부 저장된 토큰 사용)
             expires_at: 만료 시간 (None인 경우 내부 저장된 만료 시간 사용)
-        
+
         Returns:
             bool: 토큰이 유효하면 True, 그렇지 않으면 False
         """
         token = access_token or self._access_token
         expires = expires_at or self._token_expires_at
-        
+
         if not token or not expires:
             return False
-        
+
         # 현재 시간이 만료 시간보다 1시간 이상 여유가 있으면 유효
         # (1시간 여유를 두어 만료 직전에 갱신)
         now = datetime.now()
         time_until_expiry = (expires - now).total_seconds()
-        
+
         return time_until_expiry > 3600  # 1시간 이상 남았으면 유효
+
+    def will_expire_soon(self, threshold_minutes: int = 30) -> bool:
+        """
+        토큰이 곧 만료될지 확인합니다.
+        스케줄러에서 사용하여 불필요한 토큰 재발급을 방지합니다.
+
+        Args:
+            threshold_minutes: 만료 임박 기준 (분). 기본값 30분
+
+        Returns:
+            bool: 토큰이 threshold_minutes 이내에 만료되면 True, 그렇지 않으면 False
+        """
+        # 먼저 파일에서 토큰 로드 시도
+        if not self._access_token or not self._token_expires_at:
+            access_token, expires_at = self._load_token_from_file()
+            if access_token and expires_at:
+                self._access_token = access_token
+                self._token_expires_at = expires_at
+
+        # 토큰이 없으면 곧 만료될 것으로 간주 (재발급 필요)
+        if not self._access_token or not self._token_expires_at:
+            logger.debug("[AccessTokenManager] 토큰 없음 - 재발급 필요")
+            return True
+
+        now = datetime.now()
+        time_until_expiry = (self._token_expires_at - now).total_seconds()
+        threshold_seconds = threshold_minutes * 60
+
+        will_expire = time_until_expiry <= threshold_seconds
+
+        if will_expire:
+            logger.info(
+                f"[AccessTokenManager] 토큰 곧 만료 예정 "
+                f"(남은 시간: {time_until_expiry/60:.1f}분, 기준: {threshold_minutes}분)"
+            )
+        else:
+            logger.debug(
+                f"[AccessTokenManager] 토큰 유효 "
+                f"(남은 시간: {time_until_expiry/60:.1f}분)"
+            )
+
+        return will_expire
     
     def get_token(self) -> Optional[str]:
         """

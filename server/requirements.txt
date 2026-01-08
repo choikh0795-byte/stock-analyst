@@ -12,3 +12,4 @@ psycopg2-binary>=2.9.0
 finance-datareader
 pandas>=2.0.0
 pytest>=7.4.0
+apscheduler>=3.10.0
